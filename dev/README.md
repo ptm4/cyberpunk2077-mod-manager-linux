@@ -2,6 +2,9 @@
 
 Nothing in this folder is needed to use Samurai Mod Manager.
 
+While working on the code, install with `sh install.sh --in-place` so the commands and the menu entry run
+straight from this checkout. A plain `sh install.sh` copies the program to `~/.local/share/samurai-mm/app`.
+
 | Path | What it is |
 | --- | --- |
 | `tests/` | Automated tests. `python3 -m unittest discover -s dev/tests` from the project folder; everything runs in temporary folders with a fake game |

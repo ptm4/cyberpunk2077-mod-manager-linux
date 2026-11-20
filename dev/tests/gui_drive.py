@@ -141,6 +141,9 @@ def flows(win):
     yield
     check(toplevel(SetupDialog) is None, "no welcome step when folders are given on the command line")
     check(win.setup_bar.get_visible() and not win.mods_button.get_visible(), "no store yet: set-up bar shown")
+    first = win.mods_page.list.get_row_at_index(0)
+    check(first is not None and first.mod is None and "No mods yet" in first.get_child().get_label() and win.mods_page.selected() is None,
+          "an empty mod list says so")
     win.setup_button.emit("clicked")
     yield
     check((STORE / "manifest.json").is_file() and not win.setup_bar.get_visible(), "set up created the store")
@@ -277,6 +280,19 @@ def flows(win):
     win.check_game()
     yield
     check(not win.banner.get_visible() and all(s.get_sensitive() for s in win.mods_page.switches), "game closed: back on")
+    # the chosen download disappears, then the folder empties
+    win.stack.set_visible_child_name("install")
+    select(win, "Fomod Test")
+    yield
+    check(win.install_page.source is not None and buttons(win)["Install"], "a download is chosen")
+    for f in (SB / "dl").iterdir():
+        f.unlink()
+    win.install_page.update()
+    yield
+    first = win.install_page.list.get_row_at_index(0)
+    check(win.install_page.source is None and not buttons(win)["Install"], "a download that vanished is no longer the chosen one")
+    check(first is not None and first.path is None and "No zip" in first.get_child().get_label(), "an empty downloads folder says so")
+    shot(win, "7-empty-downloads.png")
     print("buttons in the window:", sorted(buttons(win)), flush=True)
 
 
