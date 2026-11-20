@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "samurai-mod-manager"
+version = "0.9.0"
+description = "A mod manager for Cyberpunk 2077 on Linux (Steam / Proton)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+classifiers = ["License :: Other/Proprietary License", "Operating System :: POSIX :: Linux"]
+# The engine and command line need only the standard library.
+# The window also needs GTK4 and PyGObject from your distribution (Arch/CachyOS: gtk4 python-gobject).
+dependencies = []
+
+[project.scripts]
+samurai-mm = "samurai_mm.engine:main"
+samurai-mm-gui = "samurai_mm.gui:main"
+
+[tool.setuptools]
+packages = ["samurai_mm", "samurai_mm.ui"]
+
+[tool.setuptools.package-data]
+samurai_mm = ["data/*"]
