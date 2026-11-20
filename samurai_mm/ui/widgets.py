@@ -38,6 +38,18 @@ def badge(text, kind=""):
     return lab
 
 
+def empty_row(text):
+    """A row that only says the list is empty. It cannot be selected; its `mod` and `path` are None."""
+    row = Gtk.ListBoxRow(selectable=False, activatable=False)
+    row.mod = row.path = None
+    lab = label(text, "dim")
+    lab.set_xalign(0.5)
+    lab.set_margin_top(18)
+    lab.set_margin_bottom(18)
+    row.set_child(lab)
+    return row
+
+
 def clear(box):
     child = box.get_first_child()
     while child:

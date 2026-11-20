@@ -12,6 +12,8 @@ First version meant for other people's machines.
 - Health check: frameworks the installed mods need, Proton prefix runtimes, Steam launch options, game updates, stray files, plus a file check and a log check.
 - Finds the game in native, Flatpak and Snap Steam, and in Heroic (GOG, Epic) and Lutris installs.
 - License: all rights reserved; free to use, no redistribution without permission (see `LICENSE`).
+- An empty mod list or downloads folder says so, and a chosen download that was moved or deleted is dropped.
+- Installer: checks for Python, GTK 4 and 7-Zip, shows the exact command for your distribution when something is missing and offers to run it, and copies the program to `~/.local/share/samurai-mm/app` so the unpacked folder can be deleted.
 - Hardening:
   - downloads are inspected before unpacking; paths pointing outside the mod folder, links, control characters in names and archives larger than the free disk space are refused;
   - Windows-style backslash paths inside archives are understood;

@@ -27,14 +27,9 @@ class ModsPage(Gtk.Box):
         sc = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
         self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.list.add_css_class("modlist")
-        self.list.set_filter_func(lambda r: self.search.get_text().lower() in r.mod["name"].lower())
+        self.list.set_filter_func(lambda r: r.mod is None or self.search.get_text().lower() in r.mod["name"].lower())
         self.list.connect("row-selected", lambda *_: win.update_sensitivity())
         self.list.connect("row-activated", lambda *_: self.show_files())
-        ph = widgets.label("No mods yet. Use the Install tab to add one.", "dim")
-        ph.set_xalign(0.5)
-        ph.set_margin_top(24)
-        ph.set_margin_bottom(24)
-        self.list.set_placeholder(ph)
         sc.set_child(self.list)
         self.append(sc)
         row = Gtk.Box(spacing=8)
@@ -60,6 +55,8 @@ class ModsPage(Gtk.Box):
         keep = self.selected()["name"] if self.selected() else None
         self.list.remove_all()
         self.switches = []
+        if not self.win.mods:
+            self.list.append(widgets.empty_row("No mods yet. Use the Install tab to add one."))
         for m in self.win.mods:
             row = Gtk.ListBoxRow()
             row.mod = m
@@ -130,13 +127,8 @@ class InstallPage(Gtk.Box):
         sc = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER, min_content_height=110)
         self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.list.add_css_class("modlist")
-        self.list.connect("row-selected", lambda _l, r: r is not None and self.set_source(r.path))
+        self.list.connect("row-selected", lambda _l, r: r is not None and r.path is not None and self.set_source(r.path))
         self.list.connect("row-activated", lambda *_: self.add(True))
-        ph = widgets.label("No zip, 7z or rar files in this folder.", "dim")
-        ph.set_xalign(0.5)
-        ph.set_margin_top(18)
-        ph.set_margin_bottom(18)
-        self.list.set_placeholder(ph)
         sc.set_child(self.list)
         self.append(sc)
 
@@ -180,12 +172,16 @@ class InstallPage(Gtk.Box):
         self.rescan_timer = GLib.timeout_add(700, fire)
 
     def update(self):
+        if self.source is not None and not self.source.exists():
+            self.set_source(None)       # the chosen download was moved or deleted meanwhile
         keep = self.source
         self.list.remove_all()
         try:
             found = [p for p in self.win.scan_dir.iterdir() if p.is_file() and p.suffix.lower() in ARCHIVE_EXT]
         except OSError:
             found = []
+        if not found:
+            self.list.append(widgets.empty_row("No zip, 7z or rar files in this folder yet. Download a mod, or use Browse."))
         installed = {m["name"].lower() for m in self.win.mods}
         for p in sorted(found, key=lambda p: p.stat().st_mtime, reverse=True):
             st = p.stat()

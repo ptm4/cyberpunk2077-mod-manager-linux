@@ -42,28 +42,43 @@ Nexus Mods. It never connects to the internet and collects nothing.
 
 ## Install
 
+1. Download the latest version and unpack it (from the Files tab on Nexus Mods, or the green
+   **Code** button here, **Download ZIP**).
+2. Open a terminal in the unpacked folder and run:
+
+```bash
+sh install.sh
+```
+
+That is all. The installer checks for the three things the manager needs (Python, GTK 4 and
+7-Zip). If one is missing it shows the exact command for your distribution and offers to run
+it for you. Then it installs the manager for your user only: no root, nothing system-wide.
+You can delete the unpacked folder afterwards.
+
+- **Open it:** "Samurai Mod Manager" in your app menu, or `samurai-mm-gui`.
+- **Update it:** download the new version and run `sh install.sh` again. Your mods and settings stay.
+- **Remove it:** `sh ~/.local/share/samurai-mm/app/install.sh --remove`. Your mods and settings stay.
+
+<details>
+<summary>Installing the needed packages by hand</summary>
+
 You need Python 3.10+, GTK 4.12+ with PyGObject, and 7-Zip (plus `unrar` for some rar files).
 
 | Distribution | Command |
 | --- | --- |
-| Arch, CachyOS, EndeavourOS | `sudo pacman -S gtk4 python-gobject 7zip unrar` |
-| Fedora, Bazzite | `sudo dnf install gtk4 python3-gobject p7zip p7zip-plugins` |
-| Ubuntu 24.04+, Mint 22+ | `sudo apt install gir1.2-gtk-4.0 python3-gi 7zip` |
+| Arch, CachyOS, EndeavourOS, Manjaro | `sudo pacman -S --needed python gtk4 python-gobject 7zip unrar` |
+| Fedora, Nobara | `sudo dnf install python3 gtk4 python3-gobject p7zip p7zip-plugins` |
+| Ubuntu 24.04+, Mint 22+, Pop!_OS | `sudo apt install python3 python3-gi gir1.2-gtk-4.0 7zip` |
+| openSUSE | `sudo zypper install python3 python3-gobject typelib-1_0-Gtk-4_0 7zip` |
 
-Then get the manager and run its installer. It needs no root and installs no packages; it adds
-two commands to `~/.local/bin` and an entry to your app menu.
-
-```bash
-git clone https://github.com/ptm4/cyberpunk2077-mod-manager-linux.git
-cd cyberpunk2077-mod-manager-linux
-./install.sh
-```
-
-Keep the folder where it is: the app runs from it. To update, run `git pull` in it. To
-uninstall, run `./install.sh --remove`; your mods and settings stay.
+Ubuntu 22.04 and Debian 12 ship a GTK that is too old for the window; the command line still works there.
+</details>
 
 Steam Deck: SteamOS does not let you install these packages the normal way, so the window is
 untested there.
+
+If you cloned this repository and want to run it straight from the clone (and update with
+`git pull`), use `sh install.sh --in-place`.
 
 ## Use
 
