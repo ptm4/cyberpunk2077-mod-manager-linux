@@ -1,6 +1,6 @@
 """Engine tests. Everything runs in a temporary folder with a fake game; nothing real is touched.
 
-Run from the project folder:  python3 -m unittest discover -s tests -v
+Run from the project folder:  python3 -m unittest discover -s dev/tests -v
 """
 import json
 import os
@@ -12,7 +12,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from samurai_mm import doctor, engine  # noqa: E402
 

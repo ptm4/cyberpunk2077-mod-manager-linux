@@ -17,7 +17,7 @@ import types
 import zipfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 MODE, SB, SHOTS = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
 ART = sys.argv[4] if len(sys.argv) > 4 else None
 os.environ["SAMURAI_MM_ASSUME_GAME_CLOSED"] = "1"     # the real game may be running while this test runs
