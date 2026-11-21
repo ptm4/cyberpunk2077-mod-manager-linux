@@ -17,6 +17,7 @@ First version meant for other people's machines.
 - New mascot: Tux as a cyber samurai (half machine, with horns, a red headband and fire rising from his head), all vector art (Tux by Larry Ewing, vector version by Garrett LeSage and IFo Hancroft), as the app icon and a larger, sharper side picture. The Cyberpunk 2077 artwork used during development is gone.
 - The mod list can be sorted: by name, recently installed, biggest, or switched off first (`samurai-mm list --sort recent|size`). The choice is remembered.
 - Launching the game talks to your Steam program directly. Before, it opened a `steam://` link through the desktop, which on some systems is claimed by a Windows Steam inside Wine and opened that instead.
+- The Health tab now guides you: every entry that is not right lists numbered steps, with buttons that open a framework's Nexus page, install its download once it arrives, install the Windows runtimes (new `samurai-mm runtimes` command, through Protontricks), copy the launch options and open the game's properties in Steam, or run a package install in a terminal. It checks again by itself when you come back to the window.
 - Hardening:
   - downloads are inspected before unpacking; paths pointing outside the mod folder, links, control characters in names and archives larger than the free disk space are refused;
   - Windows-style backslash paths inside archives are understood;

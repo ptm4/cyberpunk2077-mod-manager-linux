@@ -49,6 +49,8 @@ class Sandbox(unittest.TestCase):
             self.assertEqual(r.returncode == 0, ok, f"{args}: exit {r.returncode}\n{r.stdout}\n{r.stderr}")
         return r.stdout + r.stderr
 
+    run_cli_with_python = run_cli       # sys.executable is an absolute path, so these also work with a replaced PATH
+
     def make_zip(self, name, files):
         p = self.dl / name
         with zipfile.ZipFile(p, "w") as z:
@@ -227,7 +229,11 @@ class EngineFlow(Sandbox):
         checks = {c["id"]: c for c in json.loads(self.run_cli("doctor", "--json"))}
         self.assertEqual(checks["launch"]["status"], "warn")
         self.assertEqual(checks["runtimes"]["status"], "warn")
-        self.assertIn("protontricks 1091500 vcrun2022 d3dcompiler_47", checks["runtimes"]["fix"])
+        self.assertIn("protontricks 1091500 -q vcrun2022 d3dcompiler_47", checks["runtimes"]["fix"])
+        self.assertEqual(checks["runtimes"]["steps"][-1]["action"], {"type": "run", "label": "Install the runtimes", "args": ["runtimes"]})
+        self.assertEqual([s["action"]["type"] for s in checks["launch"]["steps"] if s["action"]], ["copy", "steam"])
+        self.assertEqual(checks["launch"]["steps"][0]["action"]["text"], 'WINEDLLOVERRIDES="winmm,version=n,b" %command%')
+        self.assertEqual(checks["launch"]["steps"][1]["action"]["url"], "steam://gameproperties/1091500")
         (pfx / "winetricks.log").write_text("vcrun2022\nd3dcompiler_47\n")
         cfg = self.steam / "userdata/1/config/localconfig.vdf"
         cfg.parent.mkdir(parents=True)
@@ -336,6 +342,109 @@ class Launch(Sandbox):
                 break
             time.sleep(0.1)
         self.assertEqual(log.read_text().splitlines(), ["steam://rungameid/1091500", "PYTHONPATH=unset"])
+
+
+class GuidedSetup(Sandbox):
+    """The health check does not just name what is missing: each entry carries the steps to fix it."""
+
+    def os_release(self, text):
+        f = self.tmp / "os-release"
+        f.write_text(text)
+        self.env["SAMURAI_MM_OS_RELEASE"] = str(f)
+        return unittest.mock.patch.dict(os.environ, {"SAMURAI_MM_OS_RELEASE": str(f)})
+
+    def checks(self):
+        return {c["id"]: c for c in json.loads(self.run_cli("doctor", "--json", ok=None))}
+
+    def test_package_commands_per_distribution(self):
+        for text, family, cmd in (('ID=cachyos\nID_LIKE=arch\n', "arch", "sudo pacman -S --needed 7zip"),
+                                  ('ID="linuxmint"\nID_LIKE="ubuntu debian"\n', "debian", "sudo apt install 7zip"),
+                                  ("ID=fedora\n", "fedora", "sudo dnf install p7zip p7zip-plugins"),
+                                  ('ID="opensuse-tumbleweed"\nID_LIKE="opensuse suse"\n', "suse", "sudo zypper install 7zip"),
+                                  ("ID=void\n", None, None)):
+            with self.os_release(text):
+                self.assertEqual(doctor.distro_family(), family, text)
+                self.assertEqual(doctor.package_command("7zip"), cmd, text)
+
+    def test_missing_framework_has_download_and_install_steps(self):
+        self.run_cli("init")
+        c = self.checks()
+        red = c["fw:RED4ext"]
+        self.assertEqual(red["status"], "info")
+        kinds = [(s["action"] or {}).get("type") for s in red["steps"]]
+        self.assertEqual(kinds, ["url", "install", None])
+        self.assertEqual(red["steps"][0]["action"]["url"], "https://www.nexusmods.com/cyberpunk2077/mods/2380?tab=files")
+        self.assertEqual(red["steps"][1]["action"]["nexus_id"], 2380)
+        self.assertIn("Install RED4ext first", c["fw:ArchiveXL"]["steps"][0]["text"])
+        out = self.run_cli("doctor", ok=None)
+        self.assertIn("1. Open its Nexus page", out)
+        self.assertIn("https://www.nexusmods.com/cyberpunk2077/mods/2380?tab=files", out)
+
+    def test_store_and_game_steps(self):
+        self.assertEqual(self.checks()["store"]["steps"][0]["action"]["args"], ["init"])
+        shutil.rmtree(self.game)
+        self.assertEqual(self.checks()["game"]["steps"][1]["action"], {"type": "tab", "label": "Open Settings", "tab": "settings"})
+
+    def test_launch_options_keep_what_the_user_had(self):
+        f = doctor.launch_options_wanted
+        self.assertEqual(f(None, ["winmm"]), 'WINEDLLOVERRIDES="winmm=n,b" %command%')
+        self.assertEqual(f("PROTON_LOG=1 %command% --launcher-skip", ["winmm", "version"]),
+                         'WINEDLLOVERRIDES="winmm,version=n,b" PROTON_LOG=1 %command% --launcher-skip')
+        self.assertEqual(f("--launcher-skip", ["version"]), 'WINEDLLOVERRIDES="version=n,b" %command% --launcher-skip')
+        self.assertEqual(f('WINEDLLOVERRIDES="winmm=n,b" %command%', ["winmm", "version"]), 'WINEDLLOVERRIDES="winmm,version=n,b" %command%')
+
+    def loaders_and_prefix(self):
+        for rel in ("red4ext/RED4ext.dll", "bin/x64/winmm.dll"):
+            (self.game / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.game / rel).write_text("x")
+        pfx = self.steam / "steamapps/compatdata/1091500/pfx"
+        pfx.mkdir(parents=True)
+        return pfx
+
+    def fake_protontricks(self, pfx, works=True):
+        bindir = self.tmp / "bin"
+        bindir.mkdir(exist_ok=True)
+        exe = bindir / "protontricks"
+        record = f'shift; shift; for v in "$@"; do echo "$v" >> "{pfx}/winetricks.log"; done' if works else "exit 3"
+        exe.write_text(f'#!/bin/sh\necho "fake protontricks $*"\n{record}\n')
+        exe.chmod(0o755)
+        self.env["PATH"] = str(bindir) + ":/usr/bin:/bin"
+
+    def test_runtimes_command(self):
+        self.run_cli("init")
+        pfx = self.loaders_and_prefix()
+        self.env["PATH"] = "/nonexistent"
+        self.env["SAMURAI_MM_OS_RELEASE"] = "/nonexistent"
+        run = lambda *args, ok=True: self.run_cli_with_python("runtimes", *args, ok=ok)  # noqa: E731
+        self.assertIn("Protontricks is not installed", run(ok=False))
+        self.fake_protontricks(pfx)
+        self.assertIn("dry run: would run:", run("--dry-run"))
+        self.assertFalse((pfx / "winetricks.log").exists())
+        out = run()
+        self.assertIn("fake protontricks 1091500 -q vcrun2022 d3dcompiler_47", out)
+        self.assertIn("installed the runtimes: vcrun2022, d3dcompiler_47", out)
+        self.assertIn("already installed", run())
+        self.assertEqual(self.checks()["runtimes"]["status"], "ok")
+
+    def test_runtimes_command_reports_failure(self):
+        self.run_cli("init")
+        pfx = self.loaders_and_prefix()
+        self.fake_protontricks(pfx, works=False)
+        out = self.run_cli_with_python("runtimes", ok=False)
+        self.assertIn("still not installed: vcrun2022, d3dcompiler_47", out)
+        self.assertNotIn("Traceback", out)
+
+    def test_terminal_command(self):
+        bindir = self.tmp / "tbin"
+        bindir.mkdir()
+        (bindir / "konsole").write_text("#!/bin/sh\n")
+        (bindir / "konsole").chmod(0o755)
+        with unittest.mock.patch.dict(os.environ, {"PATH": str(bindir)}):
+            cmd = engine.terminal_command("sudo pacman -S --needed 7zip")
+        self.assertEqual(cmd[:4], [str(bindir / "konsole"), "-e", "sh", "-c"])
+        self.assertTrue(cmd[4].startswith("sudo pacman -S --needed 7zip; status=$?"))
+        with unittest.mock.patch.dict(os.environ, {"PATH": str(self.tmp / "none")}):
+            self.assertIsNone(engine.terminal_command("true"))
 
 
 class Parsing(unittest.TestCase):

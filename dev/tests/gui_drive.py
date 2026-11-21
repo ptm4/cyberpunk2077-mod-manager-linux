@@ -358,10 +358,51 @@ def flows(win):
     ACF.write_text('"AppState"\n{\n\t"buildid"\t\t"99999999"\n}\n')
     win.refresh(health=True)
     yield
-    check({c["id"]: c["status"] for c in win.health}.get("build") == "fail" and win.health_page.accept is not None, "health reports a game update")
+    check({c["id"]: c["status"] for c in win.health}.get("build") == "fail" and ("build", 4) in win.health_page.buttons, "health reports a game update, with an Accept step")
     win.health_page.accept_build()
     yield
-    check({c["id"]: c["status"] for c in win.health}.get("build") == "ok" and win.health_page.accept is None, "accept version clears it")
+    check({c["id"]: c["status"] for c in win.health}.get("build") == "ok" and ("build", 4) not in win.health_page.buttons, "accept version clears it")
+    # guided setup: a missing framework is walked through, from its Nexus page to installed
+    hp = win.health_page
+    card = {c["id"]: c for c in win.health}["fw:redscript"]
+    check(card["status"] == "fail" and hp.buttons[("fw:redscript", 1)].get_label() == "Open its Nexus page"
+          and hp.buttons[("fw:redscript", 2)].get_label() == "Waiting for the download"
+          and not hp.buttons[("fw:redscript", 2)].get_sensitive(), "missing framework: page button, and install waits for the download")
+    check("to sort out" in hp.hint.get_label(), "the Health tab says how many things are left to do")
+    shot(win, "4b-guided.png")
+    with zipfile.ZipFile(SB / "dl" / "redscript-1511-0-5-32-1700000020.zip", "w") as z:
+        z.writestr("engine/tools/scc.exe", "MZ fake scc")
+        z.writestr("engine/config/base/scripts.ini", "x")
+    win.install_page.on_dir_changed()
+    yield
+    yield
+    yield
+    b = hp.buttons.get(("fw:redscript", 2))
+    check(b is not None and b.get_label() == "Install this download" and b.get_sensitive(), "the install step lights up when the download arrives")
+    b.emit("clicked")
+    yield
+    check({c["id"]: c["status"] for c in win.health}.get("fw:redscript") == "ok" and "engine/tools/scc.exe" in game_files(),
+          "one click installs it and the entry turns OK")
+    copied = []
+    hp.copy = lambda text: copied.append(text)
+    b = hp.action_button({"type": "copy", "label": "Copy the line", "text": "WINEDLLOVERRIDES=x"})
+    b.emit("clicked")
+    opened = []
+    real_open, engine.steam_open = engine.steam_open, lambda url, game=None: opened.append(url) or ["steam", url]
+    hp.action_button({"type": "steam", "label": "Open Steam properties", "url": "steam://gameproperties/1091500"}).emit("clicked")
+    engine.steam_open = real_open
+    spawned = []
+    real_spawn, real_term = engine.spawn_detached, engine.terminal_command
+    engine.spawn_detached, engine.terminal_command = (lambda cmd: spawned.append(cmd)), (lambda c: ["konsole", "-e", "sh", "-c", c])
+    tb = hp.action_button({"type": "terminal", "label": "Install it in a terminal", "command": "sudo pacman -S --needed 7zip"})
+    tb.emit("clicked")
+    engine.terminal_command = lambda c: None
+    nb = hp.action_button({"type": "terminal", "label": "Install it in a terminal", "command": "sudo pacman -S --needed 7zip"})
+    engine.spawn_detached, engine.terminal_command = real_spawn, real_term
+    check(copied == ["WINEDLLOVERRIDES=x"] and opened == ["steam://gameproperties/1091500"]
+          and spawned == [["konsole", "-e", "sh", "-c", "sudo pacman -S --needed 7zip"]] and nb.get_label() == "Copy the command",
+          "step buttons: copy, open Steam, run in a terminal (or copy the command when there is no terminal)")
+    del hp.copy
     # settings
     win.stack.set_visible_child_name("settings")
     if ART:

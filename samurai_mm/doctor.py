@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -25,6 +26,19 @@ FRAMEWORKS = [
     ("TweakXL", ["red4ext/plugins/TweakXL/TweakXL.dll"], 4197),
     ("Codeware", ["red4ext/plugins/Codeware/Codeware.dll"], 7780),
 ]
+FRAMEWORK_NEEDS = {"ArchiveXL": "RED4ext", "TweakXL": "RED4ext", "Codeware": "RED4ext"}    # these are RED4ext plugins
+RUNTIMES = ("vcrun2022", "d3dcompiler_47")      # what RED4ext and Cyber Engine Tweaks need inside the Proton prefix
+
+# System packages by distribution family: the install command, then each tool's package name there.
+PACKAGE_INSTALL = {"arch": "sudo pacman -S --needed", "fedora": "sudo dnf install", "debian": "sudo apt install",
+                   "suse": "sudo zypper install"}
+PACKAGE_NAMES = {
+    "7zip": {"arch": "7zip", "fedora": "p7zip p7zip-plugins", "debian": "7zip", "suse": "7zip"},
+    "unrar": {"arch": "unrar", "fedora": "unrar", "debian": "unrar", "suse": "unrar"},
+    "protontricks": {"arch": "protontricks", "fedora": "protontricks", "debian": "protontricks", "suse": "protontricks"},
+}
+FAMILIES = (("arch", ("arch", "cachyos", "endeavouros", "manjaro", "garuda")), ("fedora", ("fedora", "rhel", "nobara", "bazzite")),
+            ("debian", ("debian", "ubuntu", "linuxmint", "pop")), ("suse", ("opensuse", "suse")))
 # What a mod's files say about the framework it needs: (framework, test on a lower-case game-relative path)
 REQUIREMENT_RULES = [
     ("RED4ext", lambda p: p.startswith("red4ext/plugins/")),
@@ -120,30 +134,110 @@ def unmanaged_files(game: Path, state):
     return sorted(found)
 
 
+def distro_family():
+    """arch, fedora, debian or suse, from /etc/os-release; None if it is something else."""
+    try:
+        text = Path(os.environ.get("SAMURAI_MM_OS_RELEASE") or "/etc/os-release").read_text(errors="replace")   # the variable is for tests
+    except OSError:
+        return None
+    ids = []
+    for key in ("ID", "ID_LIKE"):
+        m = re.search(rf'^{key}=("?)(.*)\1\s*$', text, re.M)
+        if m:
+            ids += m.group(2).lower().split()
+    for family, names in FAMILIES:
+        if any(i in names for i in ids):
+            return family
+    return None
+
+
+def package_command(tool):
+    """The command that installs a system tool on this distribution, or None if the distribution is not known."""
+    family = distro_family()
+    if family is None:
+        return None
+    return f"{PACKAGE_INSTALL[family]} {PACKAGE_NAMES[tool][family]}"
+
+
+def package_step(text, tool):
+    """A step that installs a system package: run in a terminal where the command is known, plain words otherwise."""
+    command = package_command(tool)
+    if command:
+        return step(text, {"type": "terminal", "label": "Install it in a terminal", "command": command})
+    return step(f"{text} Use your distribution's package manager; the package is usually called {tool}.")
+
+
+def step(text, action=None):
+    return {"text": text, "action": action}
+
+
+def protontricks_command():
+    """How to run Protontricks here (as a normal program or as a Flatpak), or None if it is not installed."""
+    exe = shutil.which("protontricks")
+    if exe:
+        return [exe]
+    app = "com.github.Matoking.protontricks"
+    if shutil.which("flatpak") and any((base / "app" / app).is_dir() for base in
+                                        (Path.home() / ".local/share/flatpak", Path("/var/lib/flatpak"))):
+        return ["flatpak", "run", app]
+    return None
+
+
+def missing_runtimes(pfx: Path):
+    log = pfx / "winetricks.log"
+    done = set(log.read_text(errors="replace").split()) if log.is_file() else set()
+    return [v for v in RUNTIMES if v not in done]
+
+
+def launch_options_wanted(opts, dlls):
+    """The whole launch-options line the user should end up with, keeping what they already have."""
+    override = 'WINEDLLOVERRIDES="' + ",".join(dlls) + '=n,b"'
+    opts = (opts or "").strip()
+    if not opts:
+        return f"{override} %command%"
+    if "WINEDLLOVERRIDES" in opts:
+        return re.sub(r'WINEDLLOVERRIDES=(?:"[^"]*"|\'[^\']*\'|\S+)', lambda m: override, opts, count=1)
+    if "%command%" in opts:
+        return f"{override} {opts}"
+    return f"{override} %command% {opts}"
+
+
 def run_doctor(store: Path, game_arg):
+    """Every check as {id, title, status, detail, fix, steps}. `steps` is what to do about it, in order: each step
+    has a text and, where the manager can help, an action the window turns into a button."""
     checks = []
 
-    def add(key, title, status, detail="", fix=""):
-        checks.append({"id": key, "title": title, "status": status, "detail": detail, "fix": fix})
+    def add(key, title, status, detail="", fix="", steps=None):
+        checks.append({"id": key, "title": title, "status": status, "detail": detail, "fix": fix, "steps": steps or []})
 
     game = find_game(game_arg, required=False)
     if not game:
         add("game", "Game folder", "fail", "Cyberpunk 2077 was not found in any Steam library.",
-            "Install the game, or set the game folder in the settings (--game).")
+            "Install the game, or set the game folder in the settings (--game).",
+            [step("Install Cyberpunk 2077 through Steam (or Heroic or Lutris) if it is not installed yet."),
+             step("If it is installed in an unusual place, choose its folder on the Settings tab.",
+                  {"type": "tab", "label": "Open Settings", "tab": "settings"})])
         return checks
     add("game", "Game folder", "ok", str(game))
+    on_steam = is_steam_install(game)
 
     has_store = (store / "manifest.json").is_file()
     man = load_manifest(store) if has_store else None
     state = load_state(store) if has_store else {"files": {}, "settings": {}}
     if not has_store:
-        add("store", "Mod store", "warn", f"No store at {store} yet.", "Run `init` (the Set up button).")
+        add("store", "Mod store", "warn", f"No store at {store} yet.", "Run `init` (the Set up button).",
+            [step("Create the folder the manager keeps your mods in.", {"type": "run", "label": "Set up", "args": ["init"]})])
     else:
         add("store", "Mod store", "ok", f"{store}: {len(man['mods'])} enabled, {len(man['disabled']['mods'])} disabled")
         have, want = game_build(game), str(man["game"].get("buildid") or "")
         if want and have != want:
             add("build", "Game version", "fail", f"The game is now build {have}; the mods were set up for {want}.",
-                "Update the frameworks for the new game version (Install as: Update), then accept the new build.")
+                "Update the frameworks for the new game version (add --update), then run accept-build.",
+                [step("The game was updated. Mods are not put into the game until you confirm the frameworks match it."),
+                 step("For each framework you use (they are listed below), open its Nexus page and download the version "
+                      "made for the new game version."),
+                 step("Install each download from the Install tab. The manager offers to update the old one."),
+                 step("Then tell the manager the new game version is fine.", {"type": "accept-build", "label": "Accept version"})])
         else:
             add("build", "Game version", "ok", f"build {have}")
         try:
@@ -158,7 +252,12 @@ def run_doctor(store: Path, game_arg):
     has_7z = any(t.startswith("7z") for t in tools)
     add("unpack", "Unpacking tools", "ok" if has_7z else ("warn" if tools else "fail"),
         "found: " + (", ".join(tools) or "none"),
-        "" if has_7z else "Install 7zip (Arch/CachyOS: sudo pacman -S 7zip) so zip, 7z and rar downloads all unpack.")
+        "" if has_7z else "Install 7-Zip so zip, 7z and rar downloads all unpack" + (f": {package_command('7zip')}" if package_command("7zip") else "."),
+        [] if has_7z else [package_step("Install 7-Zip. The manager uses it to unpack the mods you download.", "7zip")])
+    if has_7z and "unrar" not in tools:
+        add("unrar", "unrar (optional)", "info", "Not installed. 7-Zip opens most rar downloads; a few newer ones need unrar.",
+            (package_command("unrar") or "") if package_command("unrar") else "",
+            [package_step("Only if a rar download fails to unpack: install unrar.", "unrar")])
 
     fw = installed_frameworks(game)
     need = needed_frameworks(man) if man else {}
@@ -166,62 +265,105 @@ def run_doctor(store: Path, game_arg):
         users = sorted(need.get(name, ()))
         if fw[name]:
             add("fw:" + name, name, "ok", "installed" + (f", used by {len(users)} mod{'s' if len(users) != 1 else ''}" if users else ""))
-        elif users:
+            continue
+        page = f"https://www.nexusmods.com/{NEXUS_GAME}/mods/{nexus}"
+        steps = []
+        base = FRAMEWORK_NEEDS.get(name)
+        if base and not fw[base]:
+            steps.append(step(f"Install {base} first (see its own entry here). {name} is a plugin for it."))
+        steps += [step("Open its Nexus page, go to the Files tab and choose Manual download on the main file.",
+                       {"type": "url", "label": "Open its Nexus page", "url": page + "?tab=files"}),
+                  step("When the download has finished, install it.", {"type": "install", "label": "Install this download", "nexus_id": nexus})]
+        if name in ("RED4ext", "Cyber Engine Tweaks"):
+            steps.append(step("After that, two more entries appear here: the Windows runtimes it needs and the Steam launch options. "
+                              "It only loads once both are done."))
+        if users:
             add("fw:" + name, name, "fail",
                 f"Not installed, but {len(users)} enabled mod{'s need' if len(users) != 1 else ' needs'} it: " + "; ".join(users[:4]) + (" ..." if len(users) > 4 else ""),
-                f"Download it from https://www.nexusmods.com/{NEXUS_GAME}/mods/{nexus} and install it like any mod.")
+                f"Download it from {page} and install it like any mod.", steps)
         else:
-            add("fw:" + name, name, "info", "not installed (no enabled mod needs it)")
+            add("fw:" + name, name, "info", "Not installed. None of your mods needs it yet; many popular mods do.",
+                f"Download it from {page} and install it like any mod.", steps)
 
     uses_dll_loaders = fw["RED4ext"] or fw["Cyber Engine Tweaks"]
+    dlls = (["winmm"] if fw["RED4ext"] else []) + (["version"] if fw["Cyber Engine Tweaks"] else [])
+    override = 'WINEDLLOVERRIDES="' + ",".join(dlls) + '=n,b"'
     pfx = find_prefix(game)
     if pfx is None:
-        on_steam = is_steam_install(game)
         add("prefix", "Proton prefix", "warn" if on_steam else "info",
             "No Steam Proton prefix found for the game." if on_steam else
             "Not a Steam install, so the prefix and launch options cannot be checked from here.",
-            "Launch the game once from Steam so Proton creates it." if on_steam else "")
+            "Launch the game once from Steam so Proton creates it." if on_steam else "",
+            [step("Start the game once through Steam and quit at the main menu. Proton sets up its Windows folder on first launch.",
+                  {"type": "launch", "label": "Launch the game"})] if on_steam else [])
     else:
         add("prefix", "Proton prefix", "ok", str(pfx))
         if uses_dll_loaders:
-            log = pfx / "winetricks.log"
-            verbs = set(log.read_text(errors="replace").split()) if log.is_file() else set()
-            missing = [v for v in ("vcrun2022", "d3dcompiler_47") if v not in verbs]
-            add("runtimes", "Windows runtimes in the prefix", "warn" if missing else "ok",
-                ("not recorded as installed: " + ", ".join(missing)) if missing else "vcrun2022 and d3dcompiler_47 are installed",
-                f"protontricks {APPID} " + " ".join(missing) if missing else "")
-    if uses_dll_loaders and not is_steam_install(game):
+            missing = missing_runtimes(pfx)
+            if not missing:
+                add("runtimes", "Windows runtimes in the prefix", "ok", " and ".join(RUNTIMES) + " are installed")
+            else:
+                steps = []
+                if protontricks_command() is None:
+                    steps.append(package_step("Install Protontricks, the tool that adds Windows runtimes to a Steam game.", "protontricks"))
+                steps += [step("Close the game if it is running."),
+                          step("Install the runtimes into the game's Proton prefix. They are downloaded from Microsoft, and it "
+                               "takes a few minutes; progress shows in the output pane.",
+                               {"type": "run", "label": "Install the runtimes", "args": ["runtimes"]})]
+                add("runtimes", "Windows runtimes in the prefix", "warn", "Not installed yet: " + ", ".join(missing) +
+                    ". RED4ext and Cyber Engine Tweaks do not load without them.",
+                    f"samurai-mm runtimes   (it runs: protontricks {APPID} -q " + " ".join(missing) + ")", steps)
+    if uses_dll_loaders and not on_steam:
         add("launch", "DLL overrides", "info",
             "This is not a Steam install, so the launcher settings cannot be read from here. RED4ext needs the winmm override "
             "and Cyber Engine Tweaks the version override.",
-            'In Heroic or Lutris, add this environment variable for the game: WINEDLLOVERRIDES="winmm,version=n,b". '
-            "Also install vcrun2022 and d3dcompiler_47 into its prefix with winetricks.")
+            f'In Heroic or Lutris, add this environment variable for the game: {override}. '
+            "Also install vcrun2022 and d3dcompiler_47 into its prefix with winetricks.",
+            [step("Copy this setting: " + override, {"type": "copy", "label": "Copy it", "text": override}),
+             step("In Heroic or Lutris, open the game's settings and add it as an environment variable "
+                  "(name WINEDLLOVERRIDES, value " + ",".join(dlls) + "=n,b)."),
+             step("In the same settings, use Winetricks to install vcrun2022 and d3dcompiler_47 into the game's prefix.")])
     elif uses_dll_loaders:
-        wanted = ([("winmm", "RED4ext")] if fw["RED4ext"] else []) + ([("version", "Cyber Engine Tweaks")] if fw["Cyber Engine Tweaks"] else [])
         opts = steam_launch_options()
         native = native_overrides(opts)
-        lacking = [f"{dll} (for {who})" for dll, who in wanted if dll not in native]
-        want_str = 'WINEDLLOVERRIDES="' + ",".join(d for d, _ in wanted) + '=n,b" %command%'
-        if opts is None:
-            add("launch", "Steam launch options", "warn", "No launch options are set for the game.",
-                "In Steam: right-click the game, Properties, Launch Options: " + want_str)
-        elif lacking:
-            add("launch", "Steam launch options", "warn", f"Current: {opts}\nMissing DLL overrides: " + ", ".join(lacking),
-                "Add to the launch options (before %command%): " + want_str.replace(" %command%", ""))
-        else:
+        lacking = [d for d in dlls if d not in native]
+        if not lacking:
             add("launch", "Steam launch options", "ok", opts)
+        else:
+            wanted = launch_options_wanted(opts, dlls)
+            who = {"winmm": "RED4ext", "version": "Cyber Engine Tweaks"}
+            detail = ("No launch options are set for the game." if opts is None else f"Current: {opts}") + \
+                "\nMissing: " + ", ".join(f"{d} (for {who[d]})" for d in lacking) + ". Without it Proton ignores the mod loader."
+            add("launch", "Steam launch options", "warn", detail, "In Steam: right-click the game, Properties, Launch Options: " + wanted,
+                [step("Copy this line: " + wanted, {"type": "copy", "label": "Copy the line", "text": wanted}),
+                 step("Open the game's properties in Steam.",
+                      {"type": "steam", "label": "Open Steam properties", "url": f"steam://gameproperties/{APPID}"}),
+                 step("On the General page, find Launch Options. Replace what is in the box with the line you copied "
+                      "(it already contains what you had)."),
+                 step("Steam only saves this to disk now and then, at the latest when it closes. If this entry stays yellow, "
+                      "restart Steam and run the check again.")])
         if man and any(f["path"].lower().startswith("mods/") for f in man["files"]) and "-modded" not in (opts or ""):
             add("redmod", "REDmod mods", "warn", "REDmod-style mods (mods/ folder) are installed, but the game is not started with -modded.",
-                "Add -modded after %command% in the launch options, and install the REDmod DLC.")
+                "Add -modded after %command% in the launch options, and install the REDmod DLC.",
+                [step("Install the free REDmod DLC for Cyberpunk 2077 from its Steam store page."),
+                 step("Add -modded to the very end of the game's launch options in Steam.",
+                      {"type": "steam", "label": "Open Steam properties", "url": f"steam://gameproperties/{APPID}"})])
 
     dupes = case_duplicates(game)
     add("case", "Upper/lower-case duplicates", "fail" if dupes else "ok",
         "; ".join(f"{w}: {' vs '.join(n)}" for w, n in dupes[:5]) if dupes else "none",
-        "Merge the duplicate folders by hand; Windows games treat them as one folder, Linux does not." if dupes else "")
+        "Merge the duplicate folders by hand; Windows games treat them as one folder, Linux does not." if dupes else "",
+        [step("Two folders or files differ only in upper and lower case. Windows treats them as one, Linux does not, so the "
+              "game sees only one of them."),
+         step("Open the game folder and move the contents of one into the other, then delete the empty one.",
+              {"type": "open", "label": "Open the game folder", "path": str(game)})] if dupes else [])
     stray = unmanaged_files(game, state)
     add("unmanaged", "Mod files this manager did not place", "warn" if stray else "ok",
         (f"{len(stray)} files, for example: " + "; ".join(stray[:5])) if stray else "none",
-        "They were copied in by hand or by another tool. Remove them and add the mod through this manager so it can track it." if stray else "")
+        "They were copied in by hand or by another tool. Remove them and add the mod through this manager so it can track it." if stray else "",
+        [step("These were copied in by hand or by another tool, so the manager cannot switch or remove them."),
+         step("Take them out of the game folder, then install the mod they came from on the Install tab.",
+              {"type": "open", "label": "Open the game folder", "path": str(game)})] if stray else [])
     return checks
 
 
@@ -233,12 +375,55 @@ def cmd_doctor(a):
     label = {"ok": "PASS", "warn": "WARN", "fail": "FAIL", "info": "INFO"}
     for c in checks:
         print(f"[{label[c['status']]}] {c['title']}: {c['detail']}")
-        if c["fix"]:
+        for n, st in enumerate(c["steps"], 1):
+            print(f"       {n}. {st['text']}")
+            act = st["action"] or {}
+            extra = act.get("command") or act.get("url") or (("samurai-mm " + " ".join(act["args"])) if act.get("args") else "")
+            if extra:
+                print(f"          {extra}")
+        if c["fix"] and not c["steps"]:
             print(f"       fix: {c['fix']}")
     bad = sum(1 for c in checks if c["status"] == "fail")
     warn = sum(1 for c in checks if c["status"] == "warn")
     print(f"doctor: {bad} problems, {warn} warnings")
     sys.exit(1 if bad else 0)
+
+
+def cmd_runtimes(a):
+    """Install the Windows runtimes RED4ext and Cyber Engine Tweaks need into the game's Proton prefix."""
+    from .engine import clean_env, require_game_closed
+    game = find_game(a.game)
+    if not is_steam_install(game):
+        sys.exit("error: this is not a Steam install, so Protontricks cannot reach it. In Heroic or Lutris, open the game's "
+                 "settings and use Winetricks to install: " + " ".join(RUNTIMES))
+    pfx = find_prefix(game)
+    if pfx is None:
+        sys.exit("error: the game has no Proton prefix yet. Start it once through Steam, quit at the main menu, then try again.")
+    missing = missing_runtimes(pfx)
+    if not missing:
+        print("the runtimes are already installed: " + ", ".join(RUNTIMES))
+        return
+    tool = protontricks_command()
+    if tool is None:
+        sys.exit("error: Protontricks is not installed. Install it" +
+                 (f" ({package_command('protontricks')})" if package_command("protontricks") else " with your package manager") +
+                 ", then run this again.")
+    cmd = tool + [APPID, "-q"] + missing
+    if a.dry_run:
+        print("dry run: would run: " + " ".join(cmd))
+        return
+    require_game_closed(a)
+    print("running: " + " ".join(cmd))
+    print("This downloads the runtimes from Microsoft and installs them. It can take a few minutes.", flush=True)
+    try:
+        code = subprocess.run(cmd, env=clean_env(), stdin=subprocess.DEVNULL).returncode
+    except OSError as e:
+        sys.exit(f"error: could not start Protontricks: {e}")
+    still = missing_runtimes(pfx)
+    if still:
+        sys.exit(f"error: Protontricks ended (exit code {code}) but these are still not installed: " + ", ".join(still) +
+                 ". Its messages above say why. Steam must have been started at least once, and the game must be closed.")
+    print("installed the runtimes: " + ", ".join(missing))
 
 
 def newest(game: Path, rel_dir: str, pattern: str):

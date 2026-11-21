@@ -92,6 +92,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self.check_game()
         GLib.timeout_add_seconds(3, self.check_game)
         self.refresh(health=True)
+        # steps often send the user away (a terminal, the browser, Steam): look again when they come back
+        self.connect("notify::is-active", self.on_active)
         if not self.cfg.get("setup_done") and not (opts.store or opts.game):
             GLib.idle_add(lambda: SetupDialog(self).present() and False)
 
@@ -190,6 +192,7 @@ class MainWindow(Gtk.ApplicationWindow):
             if done:
                 done(code, lines)
             if modifies:
+                self.extra_checks.pop("files", None)      # the files in the game just changed: that result is out of date
                 self.refresh(health=True)
         self.runner.run(args, wrapped, quiet=quiet, shown=shown)
 
@@ -309,6 +312,10 @@ class MainWindow(Gtk.ApplicationWindow):
         self.health_page.update()
         self.update_sensitivity()
 
+    def on_active(self, *_):
+        if self.is_active() and not self.busy and not self.runner.queue and self.stack.get_visible_child_name() == "health":
+            self.run(["doctor", "--json"], self.got_health, quiet=True)
+
     def full_check(self):
         """The Health button: setup checks, then every file, then the logs of the last launch."""
         self.extra_checks = {}
@@ -319,7 +326,10 @@ class MainWindow(Gtk.ApplicationWindow):
                 self.extra_checks["files"] = {
                     "id": "files", "title": "Mod files in the game folder", "status": "ok" if code == 0 else "fail",
                     "detail": last.replace("verify: ", ""),
-                    "fix": "" if code == 0 else "Press \"Put mods back\" (or switch the mod off and on) to restore missing or changed files."}
+                    "fix": "" if code == 0 else "Press \"Put mods back\" (or switch the mod off and on) to restore missing or changed files.",
+                    "steps": [] if code == 0 else [
+                        {"text": "Some mod files in the game folder are missing or were changed. Put the manager's copies back.",
+                         "action": {"type": "run", "label": "Put mods back", "args": ["deploy"]}}]}
 
             def logs(code, lines):
                 fails = [l.strip() for l in lines if l.strip().startswith("[FAIL]")]

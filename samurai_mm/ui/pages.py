@@ -197,6 +197,7 @@ class InstallPage(Gtk.Box):
         def fire():
             self.rescan_timer = 0
             self.update()
+            self.win.health_page.update()      # a step waiting for this download can light up
             return False
         self.rescan_timer = GLib.timeout_add(700, fire)
 
@@ -280,16 +281,16 @@ class InstallPage(Gtk.Box):
 
 
 class HealthPage(Gtk.Box):
-    """One button that checks everything, and a card per result."""
+    """One button that checks everything, and a card per result. A card for something that is not right lists what
+    to do about it as numbered steps, with a button wherever the manager can do the step or take you to it."""
 
     def __init__(self, win):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.win = win
         row = Gtk.Box(spacing=8)
-        hint = widgets.label("Is everything in place for your mods to load? Game, Proton, launch options, frameworks, "
-                             "the files themselves and the last launch.", "dim", "small", wrap=True)
-        hint.set_hexpand(True)
-        row.append(hint)
+        self.hint = widgets.label("", "dim", "small", wrap=True)
+        self.hint.set_hexpand(True)
+        row.append(self.hint)
         b = win.action(widgets.button("Run full check", lambda *_: win.full_check(), "primary",
                                       "Checks the setup, re-hashes every mod file in the game and reads the logs of the last launch"))
         b.set_valign(Gtk.Align.CENTER)
@@ -299,15 +300,24 @@ class HealthPage(Gtk.Box):
         self.cards = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         sc.set_child(self.cards)
         self.append(sc)
-        self.accept = None
+        self.registered = []      # buttons on the cards that the window switches on and off
+        self.buttons = {}         # (check id, step number) -> button, for the cards shown now
 
     def update(self):
-        if self.accept:
-            self.win.forget(self.accept)
-            self.accept = None
+        for b in self.registered:
+            self.win.forget(b)
+        self.registered, self.buttons = [], {}
         widgets.clear(self.cards)
+        checks = self.win.health + list(self.win.extra_checks.values())
+        todo = [c for c in checks if c["status"] in ("fail", "warn")]
+        if todo:
+            self.hint.set_label(f"{len(todo)} thing{'s' if len(todo) != 1 else ''} to sort out before your mods will load properly. "
+                                "Work through the entries marked PROBLEM and CHECK from the top; each lists its steps.")
+        else:
+            self.hint.set_label("Is everything in place for your mods to load? Game, Proton, launch options, frameworks, "
+                                "the files themselves and the last launch.")
         order = {"fail": 0, "warn": 1, "ok": 2, "info": 3}
-        for c in sorted(self.win.health + list(self.win.extra_checks.values()), key=lambda c: order.get(c["status"], 9)):
+        for c in sorted(checks, key=lambda c: order.get(c["status"], 9)):
             card = Gtk.Box(spacing=10)
             card.add_css_class("card")
             text_, kind = {"ok": ("OK", "good"), "warn": ("CHECK", "warn"), "fail": ("PROBLEM", "bad"), "info": ("INFO", "")}[c["status"]]
@@ -315,24 +325,105 @@ class HealthPage(Gtk.Box):
             b.set_valign(Gtk.Align.START)
             b.set_width_chars(8)
             card.append(b)
-            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3, hexpand=True)
             text.append(widgets.label(c["title"], "strong"))
             if c["detail"]:
                 text.append(widgets.label(c["detail"], "dim", "small", wrap=True, selectable=True))
-            if c["fix"]:
+            steps = c.get("steps") or []
+            for n, st in enumerate(steps, 1):
+                line = Gtk.Box(spacing=10)
+                line.set_margin_top(3)
+                lab = widgets.label(f"{n}.  {st['text']}" if len(steps) > 1 else st["text"], "small", wrap=True, selectable=True)
+                lab.set_hexpand(True)
+                line.append(lab)
+                button = self.action_button(st.get("action"))
+                if button is not None:
+                    button.set_valign(Gtk.Align.START)
+                    line.append(button)
+                    self.buttons[(c["id"], n)] = button
+                text.append(line)
+            if c["fix"] and not steps:
                 text.append(widgets.label("What to do: " + c["fix"], "small", wrap=True, selectable=True))
             card.append(text)
-            if c["id"] == "build" and c["status"] == "fail":
-                b = self.accept = self.win.action(widgets.button("Accept version", self.accept_build, "tiny",
-                                                                 "Record the installed game version as the one the mods are for"),
-                                                  modifies=True)
-                b.set_valign(Gtk.Align.START)
-                card.append(b)
-            elif c["fix"]:
-                b = widgets.button("Copy", lambda _b, s=c["fix"]: self.win.get_clipboard().set(s), "tiny", "Copy the suggested fix")
-                b.set_valign(Gtk.Align.START)
-                card.append(b)
             self.cards.append(card)
+
+    def register(self, button, modifies=False, cond=None):
+        self.registered.append(self.win.action(button, modifies=modifies, cond=cond))
+        return button
+
+    def waiting_download(self, nexus_id):
+        """The newest archive in the downloads folder that comes from this Nexus page, or None."""
+        try:
+            found = [p for p in self.win.scan_dir.iterdir() if p.is_file() and p.suffix.lower() in ARCHIVE_EXT
+                     and engine.parse_mod_name(p.stem)["nexus_id"] == nexus_id]
+        except OSError:
+            return None
+        return max(found, key=lambda p: p.stat().st_mtime) if found else None
+
+    def action_button(self, action):
+        """The button for one step, or None if the step is only words."""
+        if not action:
+            return None
+        win, kind, label = self.win, action["type"], action.get("label", "Do it")
+        if kind == "copy":
+            return widgets.button(label, lambda *_: self.copy(action["text"]), "tiny")
+        if kind == "url":
+            return widgets.button(label, lambda *_: Gio.AppInfo.launch_default_for_uri(action["url"], None), "tiny",
+                                  "Opens in your web browser")
+        if kind == "open":
+            return widgets.button(label, lambda *_: Gio.AppInfo.launch_default_for_uri(Path(action["path"]).as_uri(), None), "tiny",
+                                  "Opens in your file manager")
+        if kind == "tab":
+            return widgets.button(label, lambda *_: win.stack.set_visible_child_name(action["tab"]), "tiny")
+        if kind == "steam":
+            return widgets.button(label, lambda *_: self.steam(action["url"]), "tiny", "Opens in your Steam")
+        if kind == "launch":
+            return self.register(widgets.button(label, win.launch, "tiny"), cond=lambda: not win.game_is_running)
+        if kind == "accept-build":
+            return self.register(widgets.button(label, self.accept_build, "tiny",
+                                                "Record the installed game version as the one the mods are for"), modifies=True)
+        if kind == "run":
+            return self.register(widgets.button(label, lambda *_: win.run(action["args"], modifies=True), "tiny primary"), modifies=True)
+        if kind == "terminal":
+            if engine.terminal_command(action["command"]) is None:      # no terminal program found: the command to paste
+                return widgets.button("Copy the command", lambda *_: self.copy(action["command"]), "tiny", action["command"])
+            return widgets.button(label, lambda *_: self.terminal(action["command"]), "tiny primary",
+                                  "Opens a terminal window that runs:  " + action["command"] + "\nIt asks for your password there.")
+        if kind == "install":
+            archive = self.waiting_download(action["nexus_id"])
+            if archive is None:
+                b = widgets.button("Waiting for the download", lambda *_: None, "tiny",
+                                   f"Lights up when the file is in {win.scan_dir}")
+                b.set_sensitive(False)
+                return b
+            return self.register(widgets.button(label, lambda *_: self.install(archive), "tiny primary", archive.name),
+                                 modifies=True, cond=win.has_store)
+        return None
+
+    def copy(self, text):
+        self.win.get_clipboard().set(text)
+        self.win.out("\ncopied: " + text, "note")
+
+    def steam(self, url):
+        try:
+            engine.steam_open(url, self.win.status.get("game"))
+            self.win.out("\nasked Steam to open " + url, "note")
+        except OSError as e:
+            self.win.out(f"\nerror: could not reach Steam: {e}", "err")
+
+    def terminal(self, command):
+        cmd = engine.terminal_command(command)
+        try:
+            engine.spawn_detached(cmd)
+            self.win.out("\nopened a terminal running: " + command + "\nWhen it has finished, come back here; the check runs again by itself.", "note")
+        except OSError as e:
+            self.win.out(f"\nerror: could not open a terminal ({e}). Run this yourself: {command}", "err")
+
+    def install(self, archive):
+        """Install a download straight from a step, the same way the Install tab does."""
+        page = self.win.install_page
+        page.browsed(archive)
+        page.add(False)
 
     def accept_build(self, *_):
         self.win.confirm("Accept the new game version?",
