@@ -24,10 +24,10 @@ ART = sys.argv[4] if len(sys.argv) > 4 else None
 os.environ["SAMURAI_MM_ASSUME_GAME_CLOSED"] = "1"     # the real game may be running while this test runs
 
 from samurai_mm import engine  # noqa: E402
-from samurai_mm.ui import window  # noqa: E402
+from samurai_mm.ui import pages, window  # noqa: E402
 from samurai_mm.ui.picker import Picker  # noqa: E402
 from samurai_mm.ui.setup import SetupDialog  # noqa: E402
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
 pretend = {"running": False}
 engine.game_running = lambda: pretend["running"]
@@ -100,6 +100,8 @@ with zipfile.ZipFile(SB / "dl" / "Plain Mod-111-1-1-1700000009.zip", "w") as z:
     z.writestr("archive/pc/mod/plain_extra.archive", "new file")
 
 app = window.App(opts)
+# its own instance: without this the welcome-step run would just wake a manager that is already open on this desktop
+app.set_flags(Gio.ApplicationFlags.NON_UNIQUE)
 fails = []
 
 
@@ -280,6 +282,57 @@ def flows(win):
     win.mods_page.remove()
     yield
     check(len(win.mods) == 2 and not any("colour" in g for g in game_files()), "remove")
+    # sorting: three mods of different sizes, one made the oldest
+    big = SB / "dl" / "Zeta Big-444-1-0-1700000010.zip"
+    with zipfile.ZipFile(big, "w") as z:
+        z.writestr("archive/pc/mod/zeta.archive", "z" * 50000)
+    win.stack.set_visible_child_name("install")
+    win.install_page.update()
+    select(win, "Zeta Big")
+    win.install_page.add(False)
+    yield
+    win.stack.set_visible_child_name("mods")
+
+    def order():
+        out, i = [], 0
+        while (r := win.mods_page.list.get_row_at_index(i)) is not None:
+            out.append(r.mod["title"])
+            i += 1
+        return out
+    keys = [k for k, _ in pages.SORT_CHOICES]
+    check(order() == ["Fomod Test", "Plain Mod", "Zeta Big"], "mods are listed A to Z by default")
+    win.mods_page.sort.set_selected(keys.index("size"))
+    yield
+    check(order()[0] == "Zeta Big", "sort: biggest first")
+    win.mods_page.sort.set_selected(keys.index("recent"))
+    yield
+    row0 = win.mods_page.list.get_row_at_index(0)
+    check(order()[0] == "Zeta Big" and "installed 20" in row0.get_child().get_first_child().get_next_sibling().get_last_child().get_label(),
+          "sort: recently installed first, with the date shown")
+    shot(win, "3b-sorted.png")
+    row, sw = mod_row(win, "Fomod Test")
+    sw.set_active(False)
+    yield
+    win.mods_page.sort.set_selected(keys.index("off"))
+    yield
+    check(order()[0] == "Fomod Test" and json.loads(engine.CONFIG.read_text()).get("sort") == "off", "sort: switched off first, and the choice is remembered")
+    row, sw = mod_row(win, "Fomod Test")
+    sw.set_active(True)
+    yield
+    win.mods_page.sort.set_selected(keys.index("name"))
+    yield
+    row, sw = mod_row(win, "Zeta Big")
+    win.mods_page.list.select_row(row)
+    win.mods_page.remove()
+    yield
+    check(order() == ["Fomod Test", "Plain Mod"], "back to A to Z; the extra mod removed")
+    # the launch button talks to the Steam program directly
+    asked = []
+    real_launch, engine.launch_game = engine.launch_game, lambda game=None: asked.append(game) or ["/usr/bin/steam", "steam://rungameid/1091500"]
+    win.status["steam"] = True
+    win.launch()
+    engine.launch_game = real_launch
+    check(asked == [str(GAME)] and "asked Steam to start the game" in text(win), "launch goes to the Steam program, with the game's folder")
     # one button for the whole game folder
     win.toggle_all()
     yield

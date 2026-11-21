@@ -38,6 +38,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -175,6 +176,41 @@ def other_launcher_games():
                 if m and is_game_dir(Path(m.group(1))):
                     found.append(Path(m.group(1)))
     return found
+
+
+def steam_launch_command(game=None):
+    """The command that asks the user's own Steam client to start the game, or None if no Steam command is found.
+
+    The Steam command is run directly instead of opening a steam:// link through the desktop, because the desktop's
+    handler for such links can belong to something else (a Windows Steam inside Wine registers itself for them).
+    A Steam that is already running takes the request over; otherwise this starts Steam first."""
+    url = f"steam://rungameid/{APPID}"
+    where = str(game or "")
+    if "/.var/app/com.valvesoftware.Steam/" in where and shutil.which("flatpak"):
+        return ["flatpak", "run", "com.valvesoftware.Steam", url]
+    if "/snap/steam/" in where and shutil.which("snap"):
+        return ["snap", "run", "steam", url]
+    for name in ("steam", "steam-runtime", "steam-native"):
+        exe = shutil.which(name)
+        if exe:
+            return [exe, url]
+    if shutil.which("flatpak") and (Path.home() / ".var/app/com.valvesoftware.Steam").is_dir():
+        return ["flatpak", "run", "com.valvesoftware.Steam", url]
+    return None
+
+
+def launch_game(game=None):
+    """Ask Steam to start the game. Returns the command used; raises OSError if Steam cannot be started."""
+    cmd = steam_launch_command(game)
+    if cmd is None:
+        raise OSError("no Steam command was found (looked for steam, and for Steam as a Flatpak or Snap)")
+    env = dict(os.environ)
+    for key in ("PYTHONPATH", "PYTHONUNBUFFERED", "PYTHONDONTWRITEBYTECODE", "GSK_RENDERER", "GDK_BACKEND"):
+        env.pop(key, None)       # ours, not Steam's: a game started from here must not inherit them
+    proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            start_new_session=True)
+    threading.Thread(target=proc.wait, daemon=True).start()      # collect it when it ends; never wait for it here
+    return cmd
 
 
 def is_steam_install(game: Path) -> bool:
@@ -413,8 +449,32 @@ def match_mod(man, name, pool=None):
     return hits[0]
 
 
-def mod_rows(man, state):
-    """One summary per mod: enabled ones with their deploy state, then the disabled ones."""
+SORTS = ("name", "recent", "size")
+
+
+def added_time(store, man, name):
+    """When a mod was installed (seconds since 1970). Mods from before this was recorded use their folder's date."""
+    t = man.get("added", {}).get(name)
+    if t is None and store is not None:
+        try:
+            t = (store / "mods" / name).stat().st_mtime
+        except OSError:
+            t = None
+    return float(t or 0)
+
+
+def sort_rows(rows, how="name"):
+    """name: A to Z. recent: most recently installed first. size: biggest first. Ties fall back to the name."""
+    rows = sorted(rows, key=lambda r: r["name"].lower())
+    if how == "recent":
+        rows.sort(key=lambda r: -r["added"])
+    elif how == "size":
+        rows.sort(key=lambda r: -r["size"])
+    return rows
+
+
+def mod_rows(man, state, store=None, sort="name"):
+    """One summary per mod: enabled ones with their deploy state, and the disabled ones."""
     count, size, dep = {}, {}, {}
     for f in man["files"] + man["disabled"]["files"]:
         count[f["mod"]] = count.get(f["mod"], 0) + 1
@@ -424,11 +484,12 @@ def mod_rows(man, state):
     rows = []
     for m in man["mods"]:
         c, d = count.get(m, 0), dep.get(m, 0)
-        rows.append({"name": m, "files": c, "size": size.get(m, 0),
+        rows.append({"name": m, "files": c, "size": size.get(m, 0), "added": added_time(store, man, m),
                      "state": "deployed" if d == c and c else ("partial" if d else "not in game"), **parse_mod_name(m)})
     for m in man["disabled"]["mods"]:
-        rows.append({"name": m, "files": count.get(m, 0), "size": size.get(m, 0), "state": "disabled", **parse_mod_name(m)})
-    return sorted(rows, key=lambda r: r["name"].lower())
+        rows.append({"name": m, "files": count.get(m, 0), "size": size.get(m, 0), "added": added_time(store, man, m),
+                     "state": "disabled", **parse_mod_name(m)})
+    return sort_rows(rows, sort)
 
 
 # ---------------------------------------------------------------- init, deploy, undeploy, verify
@@ -883,6 +944,7 @@ def cmd_add(a):
                 shelve(a.store, a.store / "mods" / old)
             man["files"] = [f for f in man["files"] if f["mod"] != old]
             man["mods"] = [m for m in man["mods"] if m != old]
+            man.get("added", {}).pop(old, None)
             print(f"replaced '{old}' (its folder is kept under {a.store / 'removed'})")
         mod_dir = a.store / "mods" / name
         for q, rel in new:
@@ -892,6 +954,7 @@ def cmd_add(a):
             man["files"].append({"mod": name, "path": rel, "size": t.stat().st_size, "sha256": sha256(t)})
         if name not in man["mods"]:
             man["mods"].append(name)
+        man.setdefault("added", {})[name] = round(time.time(), 3)
         save_manifest(a.store, man)
         keep = Path(a.keep_archive).expanduser() if a.keep_archive else (src if src.is_file() else None)
         if keep and keep.is_file():
@@ -921,6 +984,7 @@ def cmd_remove(a):
     for part in (man, man["disabled"]):
         part["files"] = [f for f in part["files"] if f["mod"] != name]
         part["mods"] = [m for m in part["mods"] if m != name]
+    man.get("added", {}).pop(name, None)
     save_manifest(a.store, man)
     d = a.store / "mods" / name
     if d.exists():
@@ -982,12 +1046,17 @@ def cmd_enable(a):
 
 def cmd_list(a):
     man, state = load_manifest(a.store), load_state(a.store)
-    rows = mod_rows(man, state)
+    rows = mod_rows(man, state, a.store, a.sort)
     if a.json:
         print(json.dumps(rows))
         return
     for r in rows:
-        print(f"  {r['state']:<11}  {r['files']:4d} files  {r['name']}")
+        extra = ""
+        if a.sort == "recent":
+            extra = time.strftime("%Y-%m-%d  ", time.localtime(r["added"])) if r["added"] else "            "
+        elif a.sort == "size":
+            extra = f"{human_size(r['size']):>9}  "
+        print(f"  {r['state']:<11}  {r['files']:4d} files  {extra}{r['name']}")
     off = len(man["disabled"]["mods"])
     print(f"{len(rows)} mods ({off} disabled), {len(man['files']) + len(man['disabled']['files'])} files in {a.store}")
 
@@ -995,12 +1064,14 @@ def cmd_list(a):
 def cmd_info(a):
     man, state = load_manifest(a.store), load_state(a.store)
     name = match_mod(man, a.mod)
-    row = [r for r in mod_rows(man, state) if r["name"] == name][0]
+    row = [r for r in mod_rows(man, state, a.store) if r["name"] == name][0]
     files = sorted(f["path"] for f in man["files"] + man["disabled"]["files"] if f["mod"] == name)
     if a.json:
         print(json.dumps({**row, "paths": files, "folder": str(a.store / "mods" / name)}))
         return
     print(f"{name}\n  state: {row['state']}, {row['files']} files, {human_size(row['size'])}")
+    if row["added"]:
+        print(f"  installed: {time.strftime('%Y-%m-%d %H:%M', time.localtime(row['added']))}")
     if row["nexus_id"]:
         print(f"  Nexus: https://www.nexusmods.com/{NEXUS_GAME}/mods/{row['nexus_id']}  (version {row['version']})")
     print(f"  folder: {a.store / 'mods' / name}")
@@ -1060,7 +1131,8 @@ def build_parser():
     cmd("logs", doctor.cmd_logs)
     cmd("accept-build", cmd_accept_build)
     cmd("status", cmd_status, "--json")
-    cmd("list", cmd_list, "--json")
+    s = cmd("list", cmd_list, "--json")
+    s.add_argument("--sort", choices=SORTS, default="name", help="name (A to Z), recent (latest installed first) or size (biggest first)")
     cmd("doctor", doctor.cmd_doctor, "--json")
     s = cmd("info", cmd_info, "--json")
     s.add_argument("mod", help="mod name or a unique part of it")

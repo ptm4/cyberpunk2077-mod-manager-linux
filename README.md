@@ -1,4 +1,4 @@
-<p align="center"><img src="samurai_mm/data/icon.png" width="128" alt="The Samurai Mod Manager mascot: a cyborg penguin samurai"></p>
+<p align="center"><img src="docs/mascot.png" width="340" alt="The Samurai Mod Manager mascot: Tux as a cyber samurai, half machine, with horns, a red headband and fire rising from his head"></p>
 
 # Samurai Mod Manager
 
@@ -28,6 +28,7 @@ Nexus Mods. Cyberpunk 2077 is a trademark of CD PROJEKT S.A.
 - **Asks instead of guessing.** Downloads with several variants, or with a FOMOD installer,
   open a chooser where you tick what you want.
 - **Switches mods on and off** without deleting them.
+- **Sorts the list** by name, most recently installed, or biggest.
 - **Updates.** A newer download of a mod you have is recognised and replaces the old version.
 - **Never overwrites** another mod's files or the game's own files.
 - **Removes cleanly.** Every placed file is recorded. One button takes all mods out for a
@@ -162,5 +163,12 @@ Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors.
 please give it a different name and logo so people can tell the two apart. Packaging the official
 version unchanged for a distribution is fine under its own name.
 
-The mascot (a cyborg penguin samurai) and the side picture are original artwork made for this project. The project contains no
-art or other assets from Cyberpunk 2077.
+The mascot is Tux, the Linux penguin, as a cyber samurai: half machine, with horns, a red headband and fire
+rising from his head. Tux was created by Larry Ewing
+(lewing@isc.tamu.edu) with The GIMP; the vector version used here was re-illustrated by Garrett LeSage and
+refined by IFo Hancroft, and comes from the Linux kernel sources. It is freely usable as long as they are
+credited. Everything drawn over him (fire, headband, horns, armour, cyberware) is original artwork covered by this project's
+license; Tux himself stays under his creators' terms. The fiery, half-machine head is a nod to the band
+Samurai from Cyberpunk 2077, drawn from scratch. The sources are in `dev/artwork/`.
+
+The project contains no art or other assets from Cyberpunk 2077.
