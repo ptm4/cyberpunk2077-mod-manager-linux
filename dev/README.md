@@ -11,6 +11,7 @@ straight from this checkout. A plain `sh install.sh` copies the program to `~/.l
 | `tests/gui_drive.py` | Drives the real window through every flow against a sandbox, on a throwaway display (see the top of the file) |
 | `make-release.sh` | Runs the tests and builds `dist/samurai-mod-manager-<version>.tar.gz` |
 | `RELEASE-READINESS.md` | What was checked before the first public version, and what is still open |
+| `REPO-SETTINGS.md` | The GitHub settings that keep `main` behind maintainer review (for the repository owner) |
 
 ## How the program is laid out
 
@@ -31,3 +32,17 @@ piece of a tab.
 The store keeps one folder per mod in game-folder layout, `manifest.json` (every file with
 size and SHA-256) and `deployed.json` (what is in the game folder). Deploying copies files
 into the game folder, as reflinks where the filesystem supports them.
+
+## Before sending a change
+
+Read `CONTRIBUTING.md` in the project folder. In short: run the tests, start new files with the
+two-line SPDX license header, and sign off every commit with `git commit -s`.
+
+## Images
+
+`samurai_mm/data/icon.svg` and `banner.svg` are the sources. After changing them, render the PNGs:
+
+```bash
+rsvg-convert -w 256 -h 256 samurai_mm/data/icon.svg -o samurai_mm/data/icon.png
+rsvg-convert -w 640 -h 600 samurai_mm/data/banner.svg -o samurai_mm/data/banner.png
+```

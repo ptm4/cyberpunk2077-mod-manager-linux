@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """The chooser shown when a download holds several variants or an installer with choices."""
 import os
 import shutil

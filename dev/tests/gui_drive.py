@@ -1,11 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """Drives the real window through every flow against a sandbox, without a person clicking.
 
 Usage:
   gui_drive.py flows SANDBOX SHOTS_DIR [PICTURE]     everything after setup, with --store/--game pointing into SANDBOX
   gui_drive.py firstrun SANDBOX SHOTS_DIR            the welcome step; run it with HOME=SANDBOX/home
 
-SANDBOX must hold dl/ with the test downloads "Plain Mod", "Colour Mod" and "Fomod Test". The fake game and
-Steam files are created here. Run on a throwaway display, for example `kwin_wayland --virtual --socket test`
+SANDBOX is a new, empty folder. The fake game, the Steam files and the sample downloads are created in it. Run on a throwaway display, for example `kwin_wayland --virtual --socket test`
 with WAYLAND_DISPLAY=test, with XDG_CONFIG_HOME / XDG_CACHE_HOME pointing into the sandbox so no real settings
 are touched, and with GSK_RENDERER=cairo: saving the pictures through the GPU driver can crash while something
 else (the game) is using the GPU. Each run needs a fresh SANDBOX.
@@ -41,6 +42,57 @@ else:
     opts = types.SimpleNamespace(store=str(STORE), game=str(GAME))
 (GAME / "bin/x64").mkdir(parents=True, exist_ok=True)
 (GAME / "bin/x64/Cyberpunk2077.exe").write_bytes(b"MZ fake")
+FOMOD_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <moduleName>Fomod Test</moduleName>
+ <requiredInstallFiles><folder source="core" destination=""/></requiredInstallFiles>
+ <installSteps order="Explicit">
+  <installStep name="Main choices">
+   <optionalFileGroups>
+    <group name="Texture" type="SelectExactlyOne"><plugins order="Explicit">
+     <plugin name="Option A"><description>The A look.</description><files><file source="Opt A\\opt_a.archive" destination="archive\\pc\\mod\\opt_a.archive"/></files><typeDescriptor><type name="Optional"/></typeDescriptor></plugin>
+     <plugin name="Option B"><description>The B look.</description><files><folder source="Opt B" destination="archive/pc/mod"/></files><typeDescriptor><type name="Recommended"/></typeDescriptor></plugin>
+    </plugins></group>
+    <group name="Extras" type="SelectAny"><plugins>
+     <plugin name="Script patch"><description>Adds a patch.</description><conditionFlags><flag name="patch">On</flag></conditionFlags><typeDescriptor><type name="Optional"/></typeDescriptor></plugin>
+    </plugins></group>
+   </optionalFileGroups>
+  </installStep>
+ </installSteps>
+ <conditionalFileInstalls><patterns><pattern><dependencies operator="And"><flagDependency flag="patch" value="On"/></dependencies><files><file source="extra/patch.reds" destination="r6/scripts/patch.reds"/></files></pattern></patterns></conditionalFileInstalls>
+</config>
+"""
+
+
+def make_downloads(dl: Path):
+    """The sample downloads the flows use: a plain mod, one with two variants, one with a FOMOD installer."""
+    dl.mkdir(parents=True, exist_ok=True)
+    samples = {
+        "Plain Mod-111-1-0-1700000000.zip": {"archive/pc/mod/plain.archive": "a", "r6/scripts/plain.reds": "b"},
+        "Colour Mod-222-1-0-1700000001.7z": {"Colour Mod/Red/colour_red.archive": "r", "Colour Mod/Blue/colour_blue.archive": "b",
+                                             "Colour Mod/preview.png": "x"},
+        "Fomod Test-333-1-0-1700000002.zip": {"fomod/ModuleConfig.xml": FOMOD_XML, "Core/archive/pc/mod/core.archive": "c",
+                                              "Opt A/opt_a.archive": "a", "Opt B/opt_b.archive": "b", "extra/patch.reds": "e"},
+    }
+    for name, files in samples.items():
+        if (dl / name).exists():
+            continue
+        if name.endswith(".7z"):
+            import shutil
+            import subprocess
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                for rel, data in files.items():
+                    (Path(tmp) / rel).parent.mkdir(parents=True, exist_ok=True)
+                    (Path(tmp) / rel).write_text(data)
+                subprocess.run([shutil.which("7z") or "7z", "a", "-bso0", "-bsp0", str(dl / name), "."], cwd=tmp, check=True)
+        else:
+            with zipfile.ZipFile(dl / name, "w") as z:
+                for rel, data in files.items():
+                    z.writestr(rel, data)
+
+
+make_downloads(SB / "dl")
 ACF = STEAM / "steamapps/appmanifest_1091500.acf"
 ACF.write_text('"AppState"\n{\n\t"buildid"\t\t"1000"\n}\n')
 with zipfile.ZipFile(SB / "dl" / "Plain Mod-111-1-1-1700000009.zip", "w") as z:

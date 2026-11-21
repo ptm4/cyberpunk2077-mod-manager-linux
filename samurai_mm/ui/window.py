@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """The main window: side panel, the four tabs, the output pane, and the state they all share.
 
 The window holds no mod logic. Every action runs the engine as a separate process
@@ -26,7 +28,7 @@ from .style import CSS  # noqa: E402
 
 APP_ID = "io.github.ptm4.SamuraiModManager"
 DATA = Path(__file__).resolve().parent.parent / "data"
-ARTWORK = DATA / "samurai.png"     # the side picture unless the user picks another
+ARTWORK = DATA / "banner.png"      # the side picture unless the user picks another
 STEAM_RUN = "steam://rungameid/" + engine.APPID
 
 

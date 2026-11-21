@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """Tests for the parts that do not need a display: game detection and reading what a download offers."""
 import subprocess
 import sys

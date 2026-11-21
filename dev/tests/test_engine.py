@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """Engine tests. Everything runs in a temporary folder with a fake game; nothing real is touched.
 
 Run from the project folder:  python3 -m unittest discover -s dev/tests -v
