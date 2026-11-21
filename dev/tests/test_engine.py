@@ -10,7 +10,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
+import unittest.mock
 import zipfile
 from pathlib import Path
 
@@ -150,6 +152,36 @@ class EngineFlow(Sandbox):
         self.assertNotIn("r6/scripts/a.reds", self.game_files())
         self.run_cli("verify")
 
+    def test_sorting_and_install_time(self):
+        big = self.make_zip("Zeta Big-33-1-0-1700000003.zip", {"archive/pc/mod/z.archive": "z" * 5000})
+        self.run_cli("add", str(self.b))
+        man = json.loads((self.store / "manifest.json").read_text())
+        man["added"]["Mod B-22-2-1-1700000001"] = 1000.0            # long ago
+        (self.store / "manifest.json").write_text(json.dumps(man))
+        self.run_cli("add", str(self.a))
+        self.run_cli("add", str(big))
+        names = lambda *args: [m["name"].split("-")[0] for m in json.loads(self.run_cli("list", "--json", *args))]  # noqa: E731
+        self.assertEqual(names(), ["Mod A", "Mod B", "Zeta Big"])
+        self.assertEqual(names("--sort", "size"), ["Zeta Big", "Mod A", "Mod B"])
+        self.assertEqual(names("--sort", "recent"), ["Zeta Big", "Mod A", "Mod B"])
+        newer = self.make_zip("Mod B-22-2-2-1700000008.zip", {"archive/pc/mod/b.archive": "b2"})
+        self.run_cli("add", str(newer), "--update", "Mod B-22-2-1-1700000001")
+        self.assertEqual(names("--sort", "recent")[0], "Mod B")      # an update counts as just installed
+        added = json.loads((self.store / "manifest.json").read_text())["added"]
+        self.assertNotIn("Mod B-22-2-1-1700000001", added)
+        self.assertIn("installed: ", self.run_cli("info", "Mod B"))
+        self.assertIn(" KB  Zeta Big", self.run_cli("list", "--sort", "size"))
+        self.run_cli("remove", "Zeta")
+        self.assertNotIn("Zeta Big-33-1-0-1700000003", json.loads((self.store / "manifest.json").read_text())["added"])
+
+    def test_install_time_falls_back_to_the_folder_date(self):
+        self.run_cli("add", str(self.a))
+        man = json.loads((self.store / "manifest.json").read_text())
+        del man["added"]                                              # a store from before install times were recorded
+        (self.store / "manifest.json").write_text(json.dumps(man))
+        os.utime(self.store / "mods/Mod A-11-1-0-1700000000", (1700000000, 1700000000))
+        self.assertEqual(self.mods()["Mod A-11-1-0-1700000000"]["added"], 1700000000.0)
+
     def test_remove_disabled_mod(self):
         self.run_cli("add", str(self.a))
         self.run_cli("disable", "Mod A")
@@ -262,6 +294,48 @@ class NoStore(Sandbox):
         checks = json.loads(self.run_cli("doctor", "--json"))
         self.assertEqual((checks[0]["id"], checks[0]["status"]), ("game", "fail"))
         self.assertIn("game folder not found", self.run_cli("init", ok=False))
+
+
+class Launch(Sandbox):
+    """The game is started through the user's own Steam command, never through the desktop's steam:// link handler."""
+
+    def fake_steam(self, name="steam"):
+        bindir = self.tmp / "bin"
+        bindir.mkdir(exist_ok=True)
+        log = self.tmp / "steam-was-run.txt"
+        exe = bindir / name
+        exe.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > "{log}"\nprintf "PYTHONPATH=%s\\n" "${{PYTHONPATH:-unset}}" >> "{log}"\n')
+        exe.chmod(0o755)
+        return bindir, log
+
+    def test_command_uses_the_steam_program(self):
+        bindir, _ = self.fake_steam()
+        with unittest.mock.patch.dict(os.environ, {"PATH": str(bindir), "HOME": str(self.home)}):
+            self.assertEqual(engine.steam_launch_command(self.game), [str(bindir / "steam"), "steam://rungameid/1091500"])
+            flat = self.home / ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/Cyberpunk 2077"
+            self.assertEqual(engine.steam_launch_command(flat)[0], str(bindir / "steam"))       # no flatpak command here
+        with unittest.mock.patch.dict(os.environ, {"PATH": str(self.tmp / "empty"), "HOME": str(self.home)}):
+            self.assertIsNone(engine.steam_launch_command(self.game))
+            with self.assertRaises(OSError):
+                engine.launch_game(self.game)
+
+    def test_flatpak_steam_is_used_for_a_flatpak_install(self):
+        bindir, _ = self.fake_steam("flatpak")
+        flat = self.home / ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/Cyberpunk 2077"
+        with unittest.mock.patch.dict(os.environ, {"PATH": str(bindir), "HOME": str(self.home)}):
+            self.assertEqual(engine.steam_launch_command(flat),
+                             ["flatpak", "run", "com.valvesoftware.Steam", "steam://rungameid/1091500"])
+
+    def test_launch_runs_steam_with_a_clean_environment(self):
+        bindir, log = self.fake_steam()
+        with unittest.mock.patch.dict(os.environ, {"PATH": str(bindir) + ":/usr/bin:/bin", "PYTHONPATH": "/somewhere/ours"}):
+            cmd = engine.launch_game(self.game)
+        self.assertEqual(cmd[1], "steam://rungameid/1091500")
+        for _ in range(50):
+            if log.is_file() and "PYTHONPATH" in log.read_text():
+                break
+            time.sleep(0.1)
+        self.assertEqual(log.read_text().splitlines(), ["steam://rungameid/1091500", "PYTHONPATH=unset"])
 
 
 class Parsing(unittest.TestCase):

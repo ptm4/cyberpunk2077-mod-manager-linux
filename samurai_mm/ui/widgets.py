@@ -3,7 +3,38 @@
 """Small building blocks shared by the pages."""
 from pathlib import Path
 
-from gi.repository import Gio, GLib, Gtk, Pango
+from gi.repository import Gdk, Gio, GLib, Graphene, Gsk, Gtk, Pango
+
+
+class Picture(Gtk.Widget):
+    """A picture shown at a fixed width. The full-size image is kept and scaled while drawing, so it stays
+    sharp on high-density screens instead of being shrunk to the logical size first. Taller pictures are
+    cropped to max_height around their middle."""
+
+    def __init__(self, texture: Gdk.Texture, width: int, max_height: int):
+        super().__init__()
+        self.texture = texture
+        self.w = width
+        self.full_h = max(1, round(width * texture.get_height() / max(1, texture.get_width())))
+        self.h = min(self.full_h, max_height)
+        self.set_halign(Gtk.Align.CENTER)
+        self.set_overflow(Gtk.Overflow.HIDDEN)
+
+    def do_measure(self, orientation, for_size):
+        n = self.w if orientation == Gtk.Orientation.HORIZONTAL else self.h
+        return n, n, -1, -1
+
+    def do_snapshot(self, snapshot):
+        rect = Graphene.Rect().init(0, -(self.full_h - self.h) / 2, self.w, self.full_h)
+        snapshot.append_scaled_texture(self.texture, Gsk.ScalingFilter.TRILINEAR, rect)
+
+
+def load_picture(path: Path, width: int, max_height: int):
+    """A Picture for the image file at path, or None if it cannot be read."""
+    try:
+        return Picture(Gdk.Texture.new_from_filename(str(path)), width, max_height)
+    except GLib.Error:
+        return None
 
 
 def button(label, on_click, kind=None, tooltip=None):

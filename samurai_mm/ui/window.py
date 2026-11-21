@@ -12,12 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-import gi
-
-gi.require_version("Gtk", "4.0")
-gi.require_version("Gdk", "4.0")
-gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 
 from .. import __version__, engine  # noqa: E402
 from . import widgets  # noqa: E402
@@ -29,7 +24,6 @@ from .style import CSS  # noqa: E402
 APP_ID = "io.github.ptm4.SamuraiModManager"
 DATA = Path(__file__).resolve().parent.parent / "data"
 ARTWORK = DATA / "banner.png"      # the side picture unless the user picks another
-STEAM_RUN = "steam://rungameid/" + engine.APPID
 
 
 class MainWindow(Gtk.ApplicationWindow):
@@ -135,18 +129,10 @@ class MainWindow(Gtk.ApplicationWindow):
         widgets.clear(self.art_slot)
         own = self.cfg.get("artwork")
         for art in ([Path(own).expanduser()] if own else []) + [ARTWORK]:
-            try:
-                if art.is_file():
-                    pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(art), 320, -1, True)
-                    if pb.get_height() > 300:
-                        pb = pb.new_subpixbuf(0, (pb.get_height() - 300) // 2, 320, 300)
-                    pic = Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(pb))
-                    pic.set_can_shrink(False)
-                    pic.set_halign(Gtk.Align.CENTER)
-                    self.art_slot.append(pic)
-                    return
-            except GLib.Error:
-                continue      # an unreadable picture: fall back to the built-in one
+            pic = widgets.load_picture(art, 320, 360) if art.is_file() else None
+            if pic is not None:       # an unreadable picture falls through to the built-in one
+                self.art_slot.append(pic)
+                return
 
     def build_output(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -353,11 +339,13 @@ class MainWindow(Gtk.ApplicationWindow):
     # ---- actions
 
     def launch(self, *_):
-        self.out("\nasking Steam to start the game", "note")
+        # Steam is started by its own command, never through the desktop's steam:// link handler: that handler can
+        # belong to something else entirely (a Windows Steam inside Wine registers itself for those links).
         try:
-            Gio.AppInfo.launch_default_for_uri(STEAM_RUN, None)
-        except GLib.Error as e:
-            self.out(f"error: could not reach Steam: {e.message}", "err")
+            cmd = engine.launch_game(self.status.get("game"))
+            self.out(f"\nasked Steam to start the game ({cmd[0]})", "note")
+        except OSError as e:
+            self.out(f"\nerror: could not start the game through Steam: {e}. Start it from Steam yourself.", "err")
 
     def toggle_all(self, *_):
         if self.put_back:

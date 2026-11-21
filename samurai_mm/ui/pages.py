@@ -14,6 +14,7 @@ from .picker import Picker
 ARCHIVE_EXT = {".zip", ".7z", ".rar"}
 PICK_TRIGGERS = ("ships an installer with choices", "cannot tell where this mod's files go")
 NEXUS_URL = "https://www.nexusmods.com/" + engine.NEXUS_GAME + "/mods/{}"
+SORT_CHOICES = (("name", "Name (A to Z)"), ("recent", "Recently installed"), ("size", "Biggest first"), ("off", "Switched off first"))
 
 
 class ModsPage(Gtk.Box):
@@ -23,9 +24,18 @@ class ModsPage(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.win = win
         self.switches = []
-        self.search = Gtk.SearchEntry(placeholder_text="Filter by name")
+        top = Gtk.Box(spacing=8)
+        self.search = Gtk.SearchEntry(placeholder_text="Filter by name", hexpand=True)
         self.search.connect("search-changed", lambda *_: self.list.invalidate_filter())
-        self.append(self.search)
+        top.append(self.search)
+        top.append(widgets.label("Sort", "dim", "small"))
+        self.sort = Gtk.DropDown.new_from_strings([label for _, label in SORT_CHOICES])
+        self.sort.set_tooltip_text("The order of the list. It is remembered.")
+        keys = [k for k, _ in SORT_CHOICES]
+        self.sort.set_selected(keys.index(win.cfg.get("sort")) if win.cfg.get("sort") in keys else 0)
+        self.sort.connect("notify::selected", self.on_sort)
+        top.append(self.sort)
+        self.append(top)
         sc = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
         self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.list.add_css_class("modlist")
@@ -49,6 +59,20 @@ class ModsPage(Gtk.Box):
         row = self.list.get_selected_row()
         return row.mod if row else None
 
+    def sort_key(self):
+        return SORT_CHOICES[self.sort.get_selected()][0]
+
+    def on_sort(self, *_):
+        self.win.cfg["sort"] = self.sort_key()
+        engine.save_config(self.win.cfg)
+        self.update()
+
+    def sorted_mods(self):
+        how = self.sort_key()
+        if how == "off":       # switched-off mods first, then the rest, each group A to Z
+            return sorted(engine.sort_rows(self.win.mods), key=lambda m: m["state"] != "disabled")
+        return engine.sort_rows(self.win.mods, how)
+
     def set_switches_sensitive(self, ok):
         for sw in self.switches:
             sw.set_sensitive(ok)
@@ -59,7 +83,8 @@ class ModsPage(Gtk.Box):
         self.switches = []
         if not self.win.mods:
             self.list.append(widgets.empty_row("No mods yet. Use the Install tab to add one."))
-        for m in self.win.mods:
+        recent = self.sort_key() == "recent"
+        for m in self.sorted_mods():
             row = Gtk.ListBoxRow()
             row.mod = m
             box = Gtk.Box(spacing=10)
@@ -73,6 +98,8 @@ class ModsPage(Gtk.Box):
             title.set_tooltip_text(m["name"])
             text.append(title)
             bits = ([f"version {m['version']}"] if m.get("version") else []) + [f"{m['files']} files", engine.human_size(m["size"])]
+            if recent and m.get("added"):
+                bits.append("installed " + time.strftime("%Y-%m-%d", time.localtime(m["added"])))
             text.append(widgets.label("   ".join(bits), "dim", "small"))
             box.append(text)
             if m.get("nexus_id"):

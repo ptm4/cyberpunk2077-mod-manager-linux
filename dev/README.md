@@ -12,6 +12,7 @@ straight from this checkout. A plain `sh install.sh` copies the program to `~/.l
 | `make-release.sh` | Runs the tests and builds `dist/samurai-mod-manager-<version>.tar.gz` |
 | `RELEASE-READINESS.md` | What was checked before the first public version, and what is still open |
 | `REPO-SETTINGS.md` | The GitHub settings that keep `main` behind maintainer review (for the repository owner) |
+| `artwork/` | The mascot: the vector Tux it is based on, and the scripts that draw the gear and build the PNG files |
 
 ## How the program is laid out
 
@@ -40,9 +41,11 @@ two-line SPDX license header, and sign off every commit with `git commit -s`.
 
 ## Images
 
-`samurai_mm/data/icon.svg` and `banner.svg` are the sources. After changing them, render the PNGs:
+The mascot is vector art, built by the scripts in `dev/artwork/` (see the README there). It needs only `rsvg-convert`:
 
 ```bash
-rsvg-convert -w 256 -h 256 samurai_mm/data/icon.svg -o samurai_mm/data/icon.png
-rsvg-convert -w 640 -h 600 samurai_mm/data/banner.svg -o samurai_mm/data/banner.png
+python3 dev/artwork/build.py
 ```
+
+That rewrites `samurai_mm/data/banner.png` (the side picture), `samurai_mm/data/icon.png` (the app icon) and
+`docs/mascot.png`. The screenshots in `docs/screenshots/` are taken from a demo setup, not from anyone's real mod list.
