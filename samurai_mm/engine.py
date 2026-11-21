@@ -21,6 +21,7 @@ Commands:
   undeploy      remove exactly the files deploy placed
   verify        re-hash the deployed files against the manifest
   doctor        check the Linux side: game, Proton prefix, launch options, frameworks
+  runtimes      install the Windows runtimes the mod loaders need into the game's Proton prefix
   logs          check RED4ext / CET / redscript logs after a game launch
   accept-build  record the installed game build as the one the mods are for
   settings      copy saved settings from the store into the game (backs up what it replaces)
@@ -184,7 +185,11 @@ def steam_launch_command(game=None):
     The Steam command is run directly instead of opening a steam:// link through the desktop, because the desktop's
     handler for such links can belong to something else (a Windows Steam inside Wine registers itself for them).
     A Steam that is already running takes the request over; otherwise this starts Steam first."""
-    url = f"steam://rungameid/{APPID}"
+    return steam_command(f"steam://rungameid/{APPID}", game)
+
+
+def steam_command(url, game=None):
+    """The command that hands a steam:// request to the user's own Steam client, or None if no Steam is found."""
     where = str(game or "")
     if "/.var/app/com.valvesoftware.Steam/" in where and shutil.which("flatpak"):
         return ["flatpak", "run", "com.valvesoftware.Steam", url]
@@ -199,18 +204,52 @@ def steam_launch_command(game=None):
     return None
 
 
-def launch_game(game=None):
-    """Ask Steam to start the game. Returns the command used; raises OSError if Steam cannot be started."""
-    cmd = steam_launch_command(game)
-    if cmd is None:
-        raise OSError("no Steam command was found (looked for steam, and for Steam as a Flatpak or Snap)")
+def clean_env():
+    """The environment for programs started from here, without the variables that are only ours."""
     env = dict(os.environ)
     for key in ("PYTHONPATH", "PYTHONUNBUFFERED", "PYTHONDONTWRITEBYTECODE", "GSK_RENDERER", "GDK_BACKEND"):
-        env.pop(key, None)       # ours, not Steam's: a game started from here must not inherit them
-    proc = subprocess.Popen(cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        env.pop(key, None)
+    return env
+
+
+def spawn_detached(cmd):
+    """Start a program that lives on by itself: no shared terminal, nothing waiting for it."""
+    proc = subprocess.Popen(cmd, env=clean_env(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             start_new_session=True)
     threading.Thread(target=proc.wait, daemon=True).start()      # collect it when it ends; never wait for it here
+
+
+def steam_open(url, game=None):
+    """Hand a steam:// request to Steam. Returns the command used; raises OSError if Steam cannot be started."""
+    cmd = steam_command(url, game)
+    if cmd is None:
+        raise OSError("no Steam command was found (looked for steam, and for Steam as a Flatpak or Snap)")
+    spawn_detached(cmd)
     return cmd
+
+
+def launch_game(game=None):
+    """Ask Steam to start the game. Returns the command used; raises OSError if Steam cannot be started."""
+    return steam_open(f"steam://rungameid/{APPID}", game)
+
+
+TERMINALS = (("xdg-terminal-exec", []), ("konsole", ["-e"]), ("gnome-terminal", ["--"]), ("ptyxis", ["--"]), ("kgx", ["--"]),
+             ("xfce4-terminal", ["-x"]), ("alacritty", ["-e"]), ("kitty", []), ("foot", []), ("wezterm", ["start", "--"]),
+             ("xterm", ["-e"]))
+
+
+def terminal_command(shell_command):
+    """The command that opens a terminal window running shell_command and keeps it open afterwards, or None if no
+    terminal program is found. Used for steps that need the user's password (installing a package)."""
+    script = (f"{shell_command}; status=$?; echo; "
+              'if [ "$status" -eq 0 ]; then echo "Done. Go back to Samurai Mod Manager."; '
+              'else echo "That did not finish (exit code $status)."; fi; '
+              'printf "Press Enter to close this window. "; read _')
+    for name, flags in TERMINALS:
+        exe = shutil.which(name)
+        if exe:
+            return [exe] + flags + ["sh", "-c", script]
+    return None
 
 
 def is_steam_install(game: Path) -> bool:
@@ -1134,6 +1173,7 @@ def build_parser():
     s = cmd("list", cmd_list, "--json")
     s.add_argument("--sort", choices=SORTS, default="name", help="name (A to Z), recent (latest installed first) or size (biggest first)")
     cmd("doctor", doctor.cmd_doctor, "--json")
+    cmd("runtimes", doctor.cmd_runtimes, "--dry-run")
     s = cmd("info", cmd_info, "--json")
     s.add_argument("mod", help="mod name or a unique part of it")
     s = cmd("add", cmd_add, "--replace", "--dry-run", "--no-deploy", "--force")

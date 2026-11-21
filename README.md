@@ -35,16 +35,18 @@ Nexus Mods. Cyberpunk 2077 is a trademark of CD PROJEKT S.A.
   vanilla session and puts them back afterwards.
 - **Handles upper and lower case.** Windows treats `R6/Scripts` and `r6/scripts` as one folder;
   Linux does not. Files are merged into whatever folders already exist.
-- **Health check for the Linux side.** The frameworks your mods need (RED4ext, Cyber Engine
-  Tweaks, redscript, ArchiveXL, TweakXL, Codeware), the Proton prefix runtimes, the Steam launch
-  options, game updates and stray files, each with the exact fix.
+- **Health check that walks you through the Linux side.** The frameworks your mods need (RED4ext,
+  Cyber Engine Tweaks, redscript, ArchiveXL, TweakXL, Codeware), the Windows runtimes in the Proton
+  prefix, the Steam launch options, game updates and stray files. Anything missing comes with
+  numbered steps and buttons: open the right download page, install the download, install the
+  runtimes, copy the launch options and open the game's properties in Steam.
 - **Careful with downloads.** Archives are inspected before unpacking; anything built to write
   outside its own folder is refused.
 - Refuses to change anything while the game is running.
 
 | Install tab | Health tab |
 | --- | --- |
-| ![Pick a download, dry run, install](docs/screenshots/install.png) | ![One check for the whole setup](docs/screenshots/health.png) |
+| ![Pick a download, dry run, install](docs/screenshots/install.png) | ![The Health tab lists what is missing, with steps and buttons to fix it](docs/screenshots/health.png) |
 
 ## Install
 
@@ -94,8 +96,8 @@ anything is created.
 
 1. On a mod's Nexus page choose **Manual download**.
 2. On the **Install** tab pick it from your downloads, press **Dry run**, then **Install**.
-3. Look at the **Health** tab. It tells you if a framework, a Proton runtime or a launch option
-   is missing, with the exact fix.
+3. Look at the **Health** tab. If a framework, a Proton runtime or a launch option is missing, it
+   lists the steps and does what it can for you with one click each.
 
 After a game update the manager stops placing files, because the frameworks are tied to the
 game version. Install the updated frameworks, then accept the new version on the Health tab.
@@ -111,7 +113,8 @@ samurai-mm list
 samurai-mm disable "some mod"        # a unique part of the name is enough
 samurai-mm enable "some mod"
 samurai-mm remove "some mod"
-samurai-mm doctor                    # the health check
+samurai-mm doctor                    # the health check, with the steps to fix what it finds
+samurai-mm runtimes                  # install the Windows runtimes the mod loaders need
 samurai-mm undeploy                  # all mods out; `deploy` puts them back
 samurai-mm --help
 ```
