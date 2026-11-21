@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 # Builds dist/samurai-mod-manager-<version>.tar.gz after running the tests. Nothing is uploaded anywhere.
 # The archive holds what a user needs: the program, the installer, README, LICENSE, CHANGELOG and screenshots.
 set -eu

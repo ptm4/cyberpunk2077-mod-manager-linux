@@ -1,6 +1,8 @@
+<p align="center"><img src="samurai_mm/data/icon.png" width="128" alt="The Samurai Mod Manager mascot: a cyborg penguin samurai"></p>
+
 # Samurai Mod Manager
 
-A mod installer and manager for **Cyberpunk 2077 on Linux** (Steam with Proton, also Heroic
+Free and open source (GPL-3.0). A mod installer and manager for **Cyberpunk 2077 on Linux** (Steam with Proton, also Heroic
 and Lutris). Made and tested with game version 2.5.
 
 ![The Mods tab: every mod with an on/off switch](docs/screenshots/mods.png)
@@ -13,8 +15,11 @@ file, so any mod, or all of them, can be taken out again cleanly.
 many other setups, so reports from other distributions are welcome. A Windows version is
 planned later.
 
+It never connects to the internet and collects nothing. Contributions are welcome: see
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 This is an unofficial fan project. It is not made, approved or supported by CD PROJEKT RED or
-Nexus Mods. It never connects to the internet and collects nothing.
+Nexus Mods. Cyberpunk 2077 is a trademark of CD PROJEKT S.A.
 
 ## What it does
 
@@ -129,22 +134,33 @@ samurai-mm --help
 - REDmod (`mods/` folder) mods are installed but not deployed through REDmod.
 - Profiles, packages for the AUR or Flatpak, languages other than English.
 
-## Problems and ideas
+## Problems, ideas and contributing
 
 The **Health** tab names the problem and the fix in most cases, and **Play without mods**
 always gets you back to a vanilla game. If something is still wrong, open an issue here and
-include the text of the output pane (it has a Copy button).
+include your distribution and the text of the output pane (it has a Copy button).
+
+Pull requests are welcome. Every change is reviewed and merged by the maintainer,
+[@ptm4](https://github.com/ptm4). Read [CONTRIBUTING.md](CONTRIBUTING.md) first: it explains
+what fits the project, how to run the tests, and the `git commit -s` sign-off every commit needs.
 
 ## License
 
-Copyright (c) 2026 ptm4. All rights reserved. Samurai Mod Manager is free to download and use.
-You may read the source and change your own copy, but you may not redistribute it, re-upload
-it, or publish modified versions without permission. The full terms are in [LICENSE](LICENSE).
-Suggestions and fixes are welcome.
+Samurai Mod Manager is free software: you can use it, study it, change it and share it under the
+terms of the [GNU General Public License, version 3 or later](LICENSE). If you share a changed
+version, it must stay under the same license with its source available.
 
-## Artwork
+It comes with **no warranty**. It changes files in your game folder; keep a backup of anything
+you cannot download again.
 
-The Samurai picture and the icon made from it come from Cyberpunk 2077 and belong to
-CD PROJEKT S.A. They are included as non-commercial fan content so the manager is easy to
-recognise. They are **not** covered by this project's license. If CD PROJEKT RED asks for them
-to be removed, they will be.
+Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors.
+
+## Name and logo
+
+"Samurai Mod Manager" and its logo identify the official project maintained by
+[@ptm4](https://github.com/ptm4). The GPL covers the code, not the name: if you publish a fork,
+please give it a different name and logo so people can tell the two apart. Packaging the official
+version unchanged for a distribution is fine under its own name.
+
+The mascot (a cyborg penguin samurai) and the side picture are original artwork made for this project. The project contains no
+art or other assets from Cyberpunk 2077.

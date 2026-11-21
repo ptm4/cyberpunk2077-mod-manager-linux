@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """samurai_mm.engine - mod store and deployment for Cyberpunk 2077 on Linux (Steam / Proton).
 
 Standard library only. The idea: every mod lives in its own folder in a "store",
@@ -1037,6 +1039,8 @@ def cmd_status(a):
 def build_parser():
     from . import doctor   # imported here because doctor itself builds on this module
     ap = argparse.ArgumentParser(prog="samurai-mm", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    from . import NOTICE
+    ap.add_argument("--version", action="version", version=NOTICE)
     ap.add_argument("--store", type=Path, help=f"mod store (default: the saved setting, else {DEFAULT_STORE})")
     ap.add_argument("--game", help="path to the 'Cyberpunk 2077' folder (default: the saved setting, else found through Steam)")
     sub = ap.add_subparsers(dest="cmd", required=True)

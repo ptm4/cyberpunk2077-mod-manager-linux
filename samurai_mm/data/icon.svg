@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Samurai Mod Manager mascot. Original artwork, part of this project. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="46%" r="50%">
+      <stop offset="0" stop-color="#25232c"/><stop offset="1" stop-color="#0f0f13"/>
+    </radialGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="#0c0c0e"/>
+  <circle cx="128" cy="128" r="116" fill="url(#halo)" stroke="#e2504c" stroke-width="3"/>
+  <circle cx="128" cy="128" r="108" fill="none" stroke="#3ad7e8" stroke-width="1" opacity="0.5" stroke-dasharray="6 10"/>
+  <g transform="translate(128 132) scale(0.88) translate(-128 -128)">
+<g id="mascot">
+  <defs>
+    <linearGradient id="chrome" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2f4f7"/><stop offset="0.45" stop-color="#9aa0aa"/><stop offset="0.55" stop-color="#c9ced6"/><stop offset="1" stop-color="#5d626c"/>
+    </linearGradient>
+    <linearGradient id="armor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3a44"/><stop offset="1" stop-color="#1a1a20"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="128" cy="246" rx="62" ry="7" fill="#000" opacity="0.5"/>
+  <!-- scabbard behind the body -->
+  <path d="M150 204 L222 236" stroke="#141418" stroke-width="11" stroke-linecap="round"/>
+  <path d="M156 207 L216 233" stroke="#e2504c" stroke-width="2" stroke-linecap="round"/>
+  <!-- neck guard: dark lacquered plates with red trim -->
+  <path d="M60 122 L30 176 Q128 196 226 176 L196 122 Z" fill="url(#armor)" stroke="#0a0a0c" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M48 140 Q128 156 208 140 M38 158 Q128 176 218 158" fill="none" stroke="#e2504c" stroke-width="2.5"/>
+  <!-- feet: one normal, one chrome -->
+  <ellipse cx="102" cy="238" rx="21" ry="9" fill="#f0a030"/>
+  <ellipse cx="154" cy="238" rx="21" ry="9" fill="url(#chrome)" stroke="#4a4e56" stroke-width="1.5"/>
+  <path d="M142 236 L166 236" stroke="#3ad7e8" stroke-width="2"/>
+  <!-- body -->
+  <ellipse cx="128" cy="172" rx="68" ry="70" fill="#1c1c22" stroke="#0a0a0c" stroke-width="3"/>
+  <ellipse cx="128" cy="190" rx="46" ry="46" fill="#ecebe7"/>
+  <!-- circuit tattoo glowing on the dark side of the body -->
+  <g fill="none" stroke="#3ad7e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    <polyline points="72,150 82,160 82,176 76,182"/>
+    <polyline points="66,170 74,178"/>
+  </g>
+  <g fill="#3ad7e8"><circle cx="72" cy="150" r="2.6"/><circle cx="76" cy="182" r="2.6"/><circle cx="66" cy="170" r="2.2"/></g>
+  <!-- left flipper -->
+  <path d="M62 160 Q36 196 56 222 Q66 196 72 174 Z" fill="#1c1c22" stroke="#0a0a0c" stroke-width="2"/>
+  <!-- right flipper: chrome cyber arm -->
+  <path d="M194 160 Q222 196 200 224 Q190 196 184 174 Z" fill="url(#chrome)" stroke="#4a4e56" stroke-width="2"/>
+  <path d="M190 172 Q204 184 206 196 M188 188 Q200 200 202 212" fill="none" stroke="#4a4e56" stroke-width="2"/>
+  <path d="M196 178 Q204 186 205 192" fill="none" stroke="#3ad7e8" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="190" cy="168" r="4" fill="#4a4e56"/><circle cx="190" cy="168" r="1.8" fill="#3ad7e8"/>
+  <!-- belt with lights and the sword's hilt -->
+  <path d="M74 200 Q128 214 182 200 L182 214 Q128 228 74 214 Z" fill="#2a2a32"/>
+  <path d="M74 200 Q128 214 182 200" fill="none" stroke="#e2504c" stroke-width="2"/>
+  <g fill="#3ad7e8"><circle cx="104" cy="211" r="2"/><circle cx="116" cy="213.5" r="2"/><circle cx="128" cy="214.5" r="2"/><circle cx="140" cy="213.5" r="2"/><circle cx="152" cy="211" r="2"/></g>
+  <g transform="rotate(-32 92 204)">
+    <rect x="40" y="198" width="48" height="12" rx="4" fill="#141418" stroke="#0a0a0c" stroke-width="1.5"/>
+    <path d="M46 199 l5 5 l-5 5 M57 199 l5 5 l-5 5 M68 199 l5 5 l-5 5" fill="none" stroke="#e2504c" stroke-width="2.2"/>
+    <ellipse cx="90" cy="204" rx="4" ry="11" fill="url(#chrome)"/>
+  </g>
+  <!-- eyes: left normal; right is a cyber optic with a chrome plate -->
+  <ellipse cx="108" cy="142" rx="13" ry="14" fill="#ffffff"/>
+  <circle cx="111" cy="144" r="6.5" fill="#141418"/>
+  <circle cx="113" cy="141" r="2.2" fill="#ffffff"/>
+  <path d="M134 130 L170 128 L176 146 L164 162 L136 158 Z" fill="url(#chrome)" stroke="#4a4e56" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="152" cy="144" r="11" fill="#141418" stroke="#4a4e56" stroke-width="2"/>
+  <circle cx="152" cy="144" r="7.5" fill="#ff3b36"/>
+  <circle cx="152" cy="144" r="3.2" fill="#ffd2cf"/>
+  <path d="M140 156 L158 156" stroke="#3ad7e8" stroke-width="2" stroke-linecap="round"/>
+  <!-- beak with a chrome jaw -->
+  <path d="M114 158 Q128 152 142 158 Z" fill="#f0a030"/>
+  <path d="M114 158 Q128 152 142 158 L138 162 L118 162 Z" fill="#f0a030" stroke="#c97d14" stroke-width="1.2"/>
+  <path d="M117 162 L139 162 Q128 172 117 162 Z" fill="url(#chrome)" stroke="#4a4e56" stroke-width="1.2"/>
+  <!-- helmet: dark lacquer, red ribs, chrome crest -->
+  <path d="M60 126 Q60 60 128 54 Q196 60 196 126 Z" fill="url(#armor)" stroke="#0a0a0c" stroke-width="3"/>
+  <path d="M96 60 Q90 92 92 124 M128 54 L128 124 M160 60 Q166 92 164 124" fill="none" stroke="#e2504c" stroke-width="2.2" opacity="0.85"/>
+  <path d="M50 124 Q128 108 206 124 L206 134 Q128 118 50 134 Z" fill="#141418" stroke="#e2504c" stroke-width="2"/>
+  <path d="M50 126 L36 114 L46 136 Z M206 126 L220 114 L210 136 Z" fill="#2a2a32" stroke="#e2504c" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M120 70 Q92 52 74 2 Q100 34 128 56 Z" fill="url(#chrome)" stroke="#4a4e56" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M136 70 Q164 52 182 2 Q156 34 128 56 Z" fill="url(#chrome)" stroke="#4a4e56" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M84 16 Q100 40 122 60 M172 16 Q156 40 134 60" fill="none" stroke="#3ad7e8" stroke-width="1.6" opacity="0.9"/>
+  <polygon points="128,70 137,75 137,85 128,90 119,85 119,75" fill="#141418" stroke="url(#chrome)" stroke-width="2.5"/>
+  <circle cx="128" cy="80" r="4" fill="#ff3b36"/>
+  <!-- antenna -->
+  <path d="M184 92 L198 66" stroke="#9aa0aa" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="199" cy="64" r="4" fill="#3ad7e8"/>
+</g>
+
+  </g>
+</svg>

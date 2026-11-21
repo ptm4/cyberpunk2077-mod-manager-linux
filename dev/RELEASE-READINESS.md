@@ -15,9 +15,9 @@ handle two mods that are meant to overwrite each other.
 
 | # | Decision | Note |
 | --- | --- | --- |
-| 1 | **License** | Decided by the owner on 2026-11-19: all rights reserved. Free to download and use, source readable, no redistribution or published modified versions without permission (`LICENSE`). This can be loosened to an open-source license later; the reverse is not possible. The copyright line names `ptm4`; change it in `LICENSE`, `README.md` and `samurai_mm/__init__.py` if another name should appear. |
+| 1 | **License** | Decided by the owner on 2026-11-21: GNU GPL, version 3 or later, replacing the earlier all-rights-reserved notice. The owner keeps control through the repository: `.github/CODEOWNERS` and the ruleset in `dev/REPO-SETTINGS.md` put every change behind his review; contributors sign off under the DCO (`CONTRIBUTING.md`). |
 | 2 | **Where the code lives** | Decided: `github.com/ptm4/cyberpunk2077-mod-manager-linux`. The app id `io.github.ptm4.SamuraiModManager` matches that account. |
-| 3 | **The name and the art** | Decided by the owner on 2026-11-19: the name stays, and the Samurai picture from the game ships with the manager as its side picture and icon, so people recognise it. The picture belongs to CD PROJEKT S.A.; the README credits it, says it is not covered by the project's license, and promises removal on request. Keep the project non-commercial (no paid downloads) for as long as it carries their art. |
+| 3 | **The name and the art** | 2026-11-21: the Cyberpunk 2077 artwork was replaced by an original logo and side picture (`samurai_mm/data/*.svg`). The name stays under review; see the recommendation given to the owner. The README asks forks to use a different name and logo. |
 
 ## What was checked, and the result
 

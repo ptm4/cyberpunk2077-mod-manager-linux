@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 # Installs Samurai Mod Manager for the current user. No root is needed for the manager itself.
 #
 #   sh install.sh             install (or update) it

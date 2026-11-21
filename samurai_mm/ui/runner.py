@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """Runs engine commands one after another as separate processes and hands their output back line by line."""
 import os
 import re

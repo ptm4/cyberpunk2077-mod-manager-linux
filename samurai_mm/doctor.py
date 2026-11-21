@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """samurai_mm.doctor - checks on the Linux side, and reading the game's logs after a launch.
 
 `doctor` answers "is everything in place for my mods to load?": the frameworks the

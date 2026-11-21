@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """The four tabs. Each page builds its own widgets, asks the window to run engine commands,
 and redraws itself in update() from the state the window keeps (status, mods, health)."""
 import time
@@ -5,7 +7,7 @@ from pathlib import Path
 
 from gi.repository import Gio, GLib, Gtk, Pango
 
-from .. import __version__, engine
+from .. import NOTICE, engine
 from . import widgets
 from .picker import Picker
 
@@ -334,14 +336,14 @@ class SettingsPage(Gtk.Box):
                   "through Heroic or Lutris).", [b2, b3])
         self.card("scan_dir", "Downloads folder", "The Install tab lists the mod archives in this folder.",
                   [widgets.button("Choose", lambda *_: widgets.pick_folder(win, "Choose your downloads folder", win.scan_dir, win.set_scan_dir))])
-        self.card("artwork", "Side panel picture", "Swap the Samurai picture for one of your own. Clear brings the Samurai back.",
+        self.card("artwork", "Side panel picture", "Swap the built-in picture for one of your own. Clear brings the built-in one back.",
                   [widgets.button("Choose", lambda *_: widgets.pick_file(win, "Choose a picture", None,
                                                                          lambda p: win.save_setting("artwork", str(p)), pictures=True)),
                    widgets.button("Clear", lambda *_: win.save_setting("artwork", None))])
         self.saved = self.card("saved", "Saved game settings", "This store carries saved settings (from a move from another computer). "
                                "Applying copies them into the game; what they replace is backed up under backups/ in the store.",
                                [win.action(widgets.button("Apply", self.apply_saved), modifies=True)])
-        self.append(widgets.label(f"samurai-mm {__version__}. Settings file: {engine.CONFIG}", "dim", "small", wrap=True, selectable=True))
+        self.append(widgets.label(f"{NOTICE}\nSettings file: {engine.CONFIG}", "dim", "small", wrap=True, selectable=True))
 
     def card(self, key, title, explain, buttons):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -377,7 +379,7 @@ class SettingsPage(Gtk.Box):
         self.values["game"].set_label((st.get("game") or "not found") +
                                       ("" if win.cfg.get("game") or win.opts.game else "   (found through Steam)"))
         self.values["scan_dir"].set_label(str(win.scan_dir))
-        self.values["artwork"].set_label(win.cfg.get("artwork") or "the built-in Samurai picture")
+        self.values["artwork"].set_label(win.cfg.get("artwork") or "the built-in picture")
         n = st.get("settings_saved", 0)
         self.saved.set_visible(n > 0)
         self.values["saved"].set_label(f"{n} settings files")

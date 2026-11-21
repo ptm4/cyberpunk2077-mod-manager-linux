@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 ptm4 and Samurai Mod Manager contributors
 """What can be installed from a download the engine will not decide about: FOMOD installer options,
 folders in game layout, loose .archive files. No window code here, so it can be tested without a display."""
 import os
