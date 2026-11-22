@@ -11,9 +11,9 @@ Vortex has no Linux release, and copying mod files in by hand goes wrong on Linu
 does not on Windows. Samurai Mod Manager does the copying for you and keeps track of every
 file, so any mod, or all of them, can be taken out again cleanly.
 
-**Status: 0.9.0 beta.** Built and used daily on CachyOS (Arch). It has not yet been tried on
-many other setups, so reports from other distributions are welcome. A Windows version is
-planned later.
+**Status: 0.9.1 beta.** Built and used daily on CachyOS (Arch), and also tested on Pop!_OS. It
+has not yet been tried on many other setups, so reports from other distributions are welcome.
+A Windows version is planned later.
 
 It never connects to the internet and collects nothing. Contributions are welcome: see
 [CONTRIBUTING.md](CONTRIBUTING.md).
