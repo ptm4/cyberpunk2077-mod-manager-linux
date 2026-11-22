@@ -24,6 +24,8 @@ Every pull request is reviewed by the maintainer, [@ptm4](https://github.com/ptm
 Nobody else can merge into `main`. Please don't take a slow review or a "no" personally: keeping the manager small and
 predictable is a feature.
 
+The project owner and maintainer is [@ptm4](https://github.com/ptm4) on GitHub, also known as threesocks333 on Nexus Mods.
+
 ### What fits the project
 
 - **The window holds no mod logic.** Every button runs the same `samurai-mm` command a user could type. A new feature
